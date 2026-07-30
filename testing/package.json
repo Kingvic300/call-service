@@ -1,0 +1,32 @@
+{
+  "name": "call-service-testing",
+  "version": "1.0.0",
+  "private": true,
+  "description": "E2E scenario tests, load testing, and reporting for call-service",
+  "type": "module",
+  "scripts": {
+    "build:browser-app": "node build-browser-app.mjs",
+    "generate:users": "tsx users/generate-users.ts",
+    "test": "npm run build:browser-app && playwright test",
+    "test:report": "npm run test && node lib/render-report.ts",
+    "load:50": "npm run build:browser-app && tsx load-test/load-test.ts --participants=50",
+    "load:100": "npm run build:browser-app && tsx load-test/load-test.ts --participants=100",
+    "load:250": "npm run build:browser-app && tsx load-test/load-test.ts --participants=250",
+    "load:500": "npm run build:browser-app && tsx load-test/load-test.ts --participants=500"
+  },
+  "devDependencies": {
+    "@faker-js/faker": "^9.2.0",
+    "@playwright/test": "^1.49.1",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/node": "^22.10.2",
+    "esbuild": "^0.24.2",
+    "playwright": "^1.49.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  },
+  "dependencies": {
+    "jsonwebtoken": "^9.0.2",
+    "mediasoup-client": "^3.11.0",
+    "socket.io-client": "^4.8.1"
+  }
+}

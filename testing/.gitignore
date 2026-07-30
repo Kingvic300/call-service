@@ -1,0 +1,8 @@
+node_modules/
+reports/
+test-results/
+browser-app/dist/
+users.json
+.env
+*.log
+*.tsbuildinfo

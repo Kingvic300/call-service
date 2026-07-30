@@ -1,0 +1,16 @@
+import { Module } from '@nestjs/common';
+import { MeetingService } from './meeting.service';
+import { MeetingController } from './meeting.controller';
+import { InMemoryMeetingRepository, MEETING_REPOSITORY } from './meeting.repository';
+import { WaitingRoomService } from './waiting-room.service';
+
+@Module({
+  controllers: [MeetingController],
+  providers: [
+    MeetingService,
+    WaitingRoomService,
+    { provide: MEETING_REPOSITORY, useClass: InMemoryMeetingRepository },
+  ],
+  exports: [MeetingService, WaitingRoomService, MEETING_REPOSITORY],
+})
+export class MeetingModule {}

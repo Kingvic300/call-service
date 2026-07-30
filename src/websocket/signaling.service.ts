@@ -1,0 +1,483 @@
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { Socket } from 'socket.io';
+import { types as mediasoupTypes } from 'mediasoup';
+import { MeetingService } from '../meeting/meeting.service';
+import { WaitingRoomService } from '../meeting/waiting-room.service';
+import { Meeting } from '../meeting/entities/meeting.entity';
+import { Participant } from '../participant/entities/participant.entity';
+import { ParticipantService } from '../participant/participant.service';
+import { RouterManagerService } from '../mediasoup/router-manager.service';
+import { TransportService } from '../mediasoup/transport.service';
+import { ProducerConsumerService } from '../mediasoup/producer-consumer.service';
+import { TransportDirection } from '../mediasoup/types';
+import { ScreenShareService, isScreenShareProducer } from '../screen-share/screen-share.service';
+import { CoturnService } from '../coturn/coturn.service';
+import { ChatService, ChatMessage } from '../chat/chat.service';
+import { RealtimeBroadcaster, meetingRoomName } from './realtime-broadcaster.service';
+import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
+import { ServerEvent } from '../interfaces/socket-events.enum';
+import { MeetingType } from '../interfaces/meeting-type.enum';
+import { ParticipantRole } from '../interfaces/role.enum';
+
+export interface WaitingResult {
+  waiting: true;
+}
+
+export interface JoinedResult {
+  waiting: false;
+  rtpCapabilities: mediasoupTypes.RtpCapabilities;
+  participants: ReturnType<Participant['toPublicJSON']>[];
+  meetingState: ReturnType<Meeting['toStateJSON']>;
+  iceServers: ReturnType<CoturnService['generateIceServers']>;
+  self: ReturnType<Participant['toPublicJSON']>;
+  /** Bounded recent history (CHAT_HISTORY_LIMIT) — empty for 1:1 calls, which have no chat. */
+  chatHistory: ChatMessage[];
+  /**
+   * Producers that existed *before* this join — the `newProducer` broadcast
+   * only fires for producers created after you're already in the room, so
+   * without this a participant joining after someone's camera/mic is
+   * already on would never see it. Same shape as the `newProducer` event so
+   * clients can feed both through one consume() code path.
+   */
+  existingProducers: Array<{
+    producerId: string;
+    peerId: string;
+    kind: mediasoupTypes.MediaKind;
+    appData: Record<string, unknown>;
+  }>;
+}
+
+/**
+ * Core mediasoup signaling logic shared by CallsGateway (/calls, 1:1) and
+ * MeetingsGateway (/meetings, group). Deliberately a plain injectable
+ * service rather than a shared gateway base class: NestJS's gateway
+ * decorator scanner only reliably picks up @SubscribeMessage handlers
+ * declared directly on the concrete gateway class, so each gateway keeps
+ * its own thin handler methods and delegates the real work here — avoids
+ * duplicating mediasoup logic without relying on fragile decorator
+ * inheritance.
+ */
+@Injectable()
+export class SignalingService {
+  private readonly logger = new Logger(SignalingService.name);
+  readonly disconnectGraceMs: number;
+
+  constructor(
+    private readonly meetingService: MeetingService,
+    private readonly participantService: ParticipantService,
+    private readonly waitingRoomService: WaitingRoomService,
+    private readonly routerManager: RouterManagerService,
+    private readonly transportService: TransportService,
+    private readonly producerConsumer: ProducerConsumerService,
+    private readonly screenShare: ScreenShareService,
+    private readonly coturn: CoturnService,
+    private readonly chatService: ChatService,
+    private readonly broadcaster: RealtimeBroadcaster,
+    config: ConfigService,
+  ) {
+    this.disconnectGraceMs = config.get<number>('DISCONNECT_GRACE_PERIOD_MS', 10000);
+
+    // Relays RouterManagerService's internal AudioLevelObserver events out to
+    // clients. Without this listener, active-speaker detection computes but
+    // never reaches anyone — the observer only ever emits on the internal bus.
+    this.routerManager.on('activeSpeaker', (event: { meetingId: string; peerId: string | null }) => {
+      const meeting = this.meetingService.find(event.meetingId);
+      if (!meeting || meeting.isEnded) return;
+      this.broadcaster.emitToMeeting(meeting.namespace, meeting.id, ServerEvent.ACTIVE_SPEAKER_CHANGED, {
+        peerId: event.peerId,
+      });
+    });
+  }
+
+  getMeetingForNamespace(meetingId: string, namespace: string): Meeting {
+    const meeting = this.meetingService.getOrThrow(meetingId);
+    if (meeting.namespace !== namespace) {
+      throw new BadRequestException(`Meeting ${meetingId} does not belong to ${namespace}`);
+    }
+    return meeting;
+  }
+
+  requireParticipant(meeting: Meeting, client: Socket): Participant {
+    const userId = client.data.userId as string | undefined;
+    if (!userId) throw new BadRequestException('Not joined to this meeting');
+    const participant = this.participantService.findByUserId(meeting, userId);
+    if (!participant || participant.socketId !== client.id) {
+      throw new BadRequestException('Not an active participant of this meeting');
+    }
+    return participant;
+  }
+
+  async joinRoom(client: Socket, meetingId: string, namespace: string): Promise<WaitingResult | JoinedResult> {
+    const meeting = this.getMeetingForNamespace(meetingId, namespace);
+    if (meeting.isEnded) throw new BadRequestException('Meeting has ended');
+
+    const user = client.data.user as AuthenticatedUser;
+
+    const existing = this.participantService.findByUserId(meeting, user.id);
+    if (existing) {
+      // Reconnect: cancel any pending grace-period cleanup and rebind the socket.
+      if (existing.pendingLeaveTimer) {
+        clearTimeout(existing.pendingLeaveTimer);
+        existing.pendingLeaveTimer = undefined;
+      }
+      existing.socketId = client.id;
+      client.data.meetingId = meetingId;
+      client.data.userId = user.id;
+      client.join(meetingRoomName(meetingId));
+      const router = await this.meetingService.getOrCreateRouter(meeting);
+      return this.buildJoinedResult(meeting, existing, router);
+    }
+
+    const role = this.participantService.resolveRole(meeting, user.id);
+
+    if (meeting.waitingRoomEnabled && role !== ParticipantRole.HOST) {
+      this.waitingRoomService.add(meeting, {
+        userId: user.id,
+        displayName: user.displayName,
+        avatarUrl: user.avatarUrl,
+        socketId: client.id,
+        requestedAt: new Date(),
+      });
+      return { waiting: true };
+    }
+
+    if (meeting.locked && role !== ParticipantRole.HOST) {
+      throw new BadRequestException('Meeting is locked');
+    }
+
+    const participant = new Participant({
+      userId: user.id,
+      socketId: client.id,
+      displayName: user.displayName,
+      avatarUrl: user.avatarUrl,
+      role,
+      meetingId,
+    });
+    this.participantService.addParticipant(meeting, participant);
+
+    client.data.meetingId = meetingId;
+    client.data.userId = user.id;
+    client.join(meetingRoomName(meetingId));
+
+    const router = await this.meetingService.getOrCreateRouter(meeting);
+
+    this.broadcaster.emitToMeetingExcept(
+      meeting.namespace,
+      meeting.id,
+      client.id,
+      ServerEvent.USER_JOINED,
+      participant.toPublicJSON(),
+    );
+
+    return this.buildJoinedResult(meeting, participant, router);
+  }
+
+  private buildJoinedResult(
+    meeting: Meeting,
+    self: Participant,
+    router: mediasoupTypes.Router,
+  ): JoinedResult {
+    return {
+      waiting: false,
+      rtpCapabilities: router.rtpCapabilities,
+      participants: this.participantService
+        .list(meeting)
+        .filter((p) => p.userId !== self.userId)
+        .map((p) => p.toPublicJSON()),
+      meetingState: meeting.toStateJSON(),
+      iceServers: this.coturn.generateIceServers(self.userId),
+      self: self.toPublicJSON(),
+      chatHistory: this.chatService.getHistory(meeting.id),
+      existingProducers: this.listExistingProducers(meeting, self.userId),
+    };
+  }
+
+  private listExistingProducers(
+    meeting: Meeting,
+    excludeUserId: string,
+  ): JoinedResult['existingProducers'] {
+    const result: JoinedResult['existingProducers'] = [];
+    for (const participant of meeting.participants.values()) {
+      if (participant.userId === excludeUserId) continue;
+      for (const producer of participant.producers.values()) {
+        result.push({
+          producerId: producer.id,
+          peerId: participant.userId,
+          kind: producer.kind,
+          appData: producer.appData as Record<string, unknown>,
+        });
+      }
+    }
+    return result;
+  }
+
+  leaveRoom(client: Socket, meeting: Meeting): void {
+    const participant = this.requireParticipant(meeting, client);
+    client.leave(meetingRoomName(meeting.id));
+    this.finalizeLeave(meeting, participant.userId);
+  }
+
+  /** Called from handleDisconnect — gives brief reconnect tolerance before tearing down media. */
+  scheduleDisconnectCleanup(client: Socket, meeting: Meeting): void {
+    const userId = client.data.userId as string | undefined;
+    if (!userId) return;
+    const participant = this.participantService.findByUserId(meeting, userId);
+    if (!participant || participant.socketId !== client.id) return;
+
+    participant.pendingLeaveTimer = setTimeout(() => {
+      this.finalizeLeave(meeting, userId);
+    }, this.disconnectGraceMs);
+  }
+
+  private finalizeLeave(meeting: Meeting, userId: string): void {
+    const participant = this.participantService.findByUserId(meeting, userId);
+    if (!participant) return;
+
+    if (participant.presenting) this.screenShare.onStopped(meeting, participant);
+
+    this.participantService.removeParticipant(meeting, userId);
+    this.broadcaster.emitToMeeting(meeting.namespace, meeting.id, ServerEvent.USER_LEFT, { peerId: userId });
+
+    if (meeting.type === MeetingType.ONE_TO_ONE) {
+      if (!meeting.isEnded) this.meetingService.end(meeting.id, `${userId} left the call`);
+      return;
+    }
+
+    if (meeting.participantCount === 0 && !meeting.isEnded) {
+      this.routerManager.closeRouter(meeting.id);
+    }
+  }
+
+  async createTransport(
+    client: Socket,
+    meeting: Meeting,
+    direction: TransportDirection,
+  ): Promise<ReturnType<TransportService['toParams']>> {
+    const participant = this.requireParticipant(meeting, client);
+    const router = this.routerManager.getRouter(meeting.id);
+    const webRtcServer = this.routerManager.getWebRtcServer(meeting.id);
+    if (!router || !webRtcServer) throw new NotFoundException('Router not ready for this meeting');
+
+    const transport = await this.transportService.createWebRtcTransport(router, webRtcServer, {
+      peerId: participant.userId,
+      direction,
+    });
+    participant.addTransport(transport);
+    return this.transportService.toParams(transport);
+  }
+
+  async connectTransport(
+    client: Socket,
+    meeting: Meeting,
+    transportId: string,
+    dtlsParameters: mediasoupTypes.DtlsParameters,
+  ): Promise<{ connected: true }> {
+    const participant = this.requireParticipant(meeting, client);
+    const transport = participant.transports.get(transportId);
+    if (!transport) throw new NotFoundException('Transport not found');
+    await this.transportService.connect(transport, dtlsParameters);
+    return { connected: true };
+  }
+
+  async produce(
+    client: Socket,
+    meeting: Meeting,
+    transportId: string,
+    kind: mediasoupTypes.MediaKind,
+    rtpParameters: mediasoupTypes.RtpParameters,
+    clientAppData: Record<string, unknown> = {},
+  ): Promise<{ id: string }> {
+    const participant = this.requireParticipant(meeting, client);
+    const transport = participant.transports.get(transportId);
+    if (!transport) throw new NotFoundException('Transport not found');
+
+    // peerId is always server-stamped — never trust the client's own claim of identity here.
+    const appData: Record<string, unknown> = { ...clientAppData, peerId: participant.userId };
+    const isScreen = appData.source === 'screen';
+    if (isScreen) this.screenShare.assertCanStart(meeting, participant.userId);
+
+    const producer = await this.producerConsumer.produce(transport, { kind, rtpParameters, appData });
+    participant.addProducer(producer);
+
+    producer.on('transportclose', () => participant.producers.delete(producer.id));
+
+    if (kind === 'audio') {
+      await this.routerManager.addProducerToAudioLevelObserver(meeting.id, producer);
+      participant.audioMuted = false;
+      this.broadcaster.emitToMeeting(meeting.namespace, meeting.id, ServerEvent.AUDIO_UNMUTED, {
+        peerId: participant.userId,
+      });
+    } else if (isScreen) {
+      this.screenShare.onStarted(meeting, participant);
+    } else {
+      participant.videoEnabled = true;
+      this.broadcaster.emitToMeeting(meeting.namespace, meeting.id, ServerEvent.VIDEO_ENABLED, {
+        peerId: participant.userId,
+      });
+    }
+
+    this.broadcaster.emitToMeetingExcept(
+      meeting.namespace,
+      meeting.id,
+      client.id,
+      ServerEvent.NEW_PRODUCER,
+      { producerId: producer.id, peerId: participant.userId, kind, appData },
+    );
+
+    return { id: producer.id };
+  }
+
+  async consume(
+    client: Socket,
+    meeting: Meeting,
+    transportId: string,
+    producerId: string,
+    rtpCapabilities: mediasoupTypes.RtpCapabilities,
+  ) {
+    const participant = this.requireParticipant(meeting, client);
+    const transport = participant.transports.get(transportId);
+    if (!transport) throw new NotFoundException('Transport not found');
+
+    const router = this.routerManager.getRouter(meeting.id);
+    if (!router) throw new NotFoundException('Router not ready for this meeting');
+
+    const producer = this.findProducer(meeting, producerId);
+    if (!producer) throw new NotFoundException('Producer not found');
+
+    const { consumer, params } = await this.producerConsumer.consume(
+      router,
+      transport,
+      producer,
+      rtpCapabilities,
+      { peerId: participant.userId },
+    );
+    participant.addConsumer(consumer);
+
+    consumer.on('producerclose', () => {
+      participant.consumers.delete(consumer.id);
+      this.broadcaster.emitToSocket(meeting.namespace, client.id, ServerEvent.PRODUCER_CLOSED, {
+        producerId,
+      });
+    });
+
+    return params;
+  }
+
+  private findProducer(meeting: Meeting, producerId: string): mediasoupTypes.Producer | undefined {
+    for (const p of meeting.participants.values()) {
+      const producer = p.findProducer(producerId);
+      if (producer) return producer;
+    }
+    return undefined;
+  }
+
+  async resumeConsumer(client: Socket, meeting: Meeting, consumerId: string): Promise<{ resumed: true }> {
+    const participant = this.requireParticipant(meeting, client);
+    const consumer = participant.consumers.get(consumerId);
+    if (!consumer) throw new NotFoundException('Consumer not found');
+    await this.producerConsumer.resumeConsumer(consumer);
+    return { resumed: true };
+  }
+
+  async pauseProducer(client: Socket, meeting: Meeting, producerId: string): Promise<{ paused: true }> {
+    const participant = this.requireParticipant(meeting, client);
+    const producer = participant.producers.get(producerId);
+    if (!producer) throw new NotFoundException('Producer not found');
+    await this.producerConsumer.pauseProducer(producer);
+    this.applyProducerStateChange(meeting, participant, producer, true);
+    return { paused: true };
+  }
+
+  async resumeProducer(client: Socket, meeting: Meeting, producerId: string): Promise<{ resumed: true }> {
+    const participant = this.requireParticipant(meeting, client);
+    const producer = participant.producers.get(producerId);
+    if (!producer) throw new NotFoundException('Producer not found');
+    await this.producerConsumer.resumeProducer(producer);
+    this.applyProducerStateChange(meeting, participant, producer, false);
+    return { resumed: true };
+  }
+
+  closeProducer(client: Socket, meeting: Meeting, producerId: string): { closed: true } {
+    const participant = this.requireParticipant(meeting, client);
+    const producer = participant.producers.get(producerId);
+    if (!producer) throw new NotFoundException('Producer not found');
+
+    const wasScreen = isScreenShareProducer(producer);
+    this.producerConsumer.closeProducer(producer);
+    participant.producers.delete(producerId);
+
+    if (wasScreen) {
+      this.screenShare.onStopped(meeting, participant);
+    } else if (producer.kind === 'video') {
+      participant.videoEnabled = false;
+      this.broadcaster.emitToMeeting(meeting.namespace, meeting.id, ServerEvent.VIDEO_DISABLED, {
+        peerId: participant.userId,
+      });
+    } else {
+      participant.audioMuted = true;
+      this.broadcaster.emitToMeeting(meeting.namespace, meeting.id, ServerEvent.AUDIO_MUTED, {
+        peerId: participant.userId,
+        forced: false,
+      });
+    }
+
+    this.broadcaster.emitToMeeting(meeting.namespace, meeting.id, ServerEvent.PRODUCER_CLOSED, { producerId });
+    return { closed: true };
+  }
+
+  private applyProducerStateChange(
+    meeting: Meeting,
+    participant: Participant,
+    producer: mediasoupTypes.Producer,
+    paused: boolean,
+  ): void {
+    if (producer.kind === 'audio') {
+      participant.audioMuted = paused;
+      this.broadcaster.emitToMeeting(
+        meeting.namespace,
+        meeting.id,
+        paused ? ServerEvent.AUDIO_MUTED : ServerEvent.AUDIO_UNMUTED,
+        { peerId: participant.userId, forced: false },
+      );
+    } else if (!isScreenShareProducer(producer)) {
+      participant.videoEnabled = !paused;
+      this.broadcaster.emitToMeeting(
+        meeting.namespace,
+        meeting.id,
+        paused ? ServerEvent.VIDEO_DISABLED : ServerEvent.VIDEO_ENABLED,
+        { peerId: participant.userId },
+      );
+    }
+  }
+
+  async restartIce(
+    client: Socket,
+    meeting: Meeting,
+    transportId: string,
+  ): Promise<mediasoupTypes.IceParameters> {
+    const participant = this.requireParticipant(meeting, client);
+    const transport = participant.transports.get(transportId);
+    if (!transport) throw new NotFoundException('Transport not found');
+    return this.transportService.restartIce(transport);
+  }
+
+  startScreenShare(client: Socket, meeting: Meeting): { allowed: true } {
+    const participant = this.requireParticipant(meeting, client);
+    this.screenShare.assertCanStart(meeting, participant.userId);
+    meeting.activePresenterId = participant.userId;
+    return { allowed: true };
+  }
+
+  stopScreenShare(client: Socket, meeting: Meeting): { stopped: true } {
+    const participant = this.requireParticipant(meeting, client);
+    for (const producer of participant.producers.values()) {
+      if (isScreenShareProducer(producer)) {
+        this.producerConsumer.closeProducer(producer);
+        participant.producers.delete(producer.id);
+      }
+    }
+    this.screenShare.onStopped(meeting, participant);
+    return { stopped: true };
+  }
+}

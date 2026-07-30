@@ -1,0 +1,58 @@
+version: '3.9'
+
+services:
+  call-service:
+    build: .
+    # On the droplet itself, prefer pulling a pre-built image instead of
+    # `build: .` here — see docs/DEPLOYMENT.md. Set CALL_SERVICE_IMAGE and
+    # comment out the `build:` line once you're pulling from a registry.
+    image: ${CALL_SERVICE_IMAGE:-call-service:latest}
+    restart: unless-stopped
+    # Host networking: the app binds directly to the droplet's network stack,
+    # no per-port Docker NAT/iptables overhead. This is what makes a single
+    # mediasoup port (see MEDIASOUP_WEBRTC_PORT) actually simple to run —
+    # Linux-only, which is exactly what a droplet is.
+    network_mode: host
+    # Keep V8's heap bounded so a busy meeting can't starve the mediasoup
+    # worker processes of memory on a small droplet. Raise on a bigger box.
+    mem_limit: ${CALL_SERVICE_MEM_LIMIT:-900m}
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      INTERNAL_API_KEYS: ${INTERNAL_API_KEYS}
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+      MEDIASOUP_NUM_WORKERS: ${MEDIASOUP_NUM_WORKERS:-1}
+      MEDIASOUP_ANNOUNCED_IP: ${MEDIASOUP_ANNOUNCED_IP}
+      MEDIASOUP_WEBRTC_PORT: 44000
+      TURN_HOST: ${TURN_HOST}
+      TURN_PORT: 3478
+      TURN_TLS_PORT: 5349
+      TURN_SECRET: ${TURN_SECRET}
+    depends_on:
+      - coturn
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:4000/health']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  coturn:
+    image: coturn/coturn:4.6
+    restart: unless-stopped
+    network_mode: host
+    mem_limit: 128m
+    volumes:
+      - ./docker/coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
+    command: ['-c', '/etc/coturn/turnserver.conf']
+
+  # Optional — only needed once you run more than one call-service instance
+  # behind a load balancer (fans Socket.IO broadcasts out across instances).
+  # Not relevant to a single-droplet MVP deployment.
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    profiles: ['scaling']
+    ports:
+      - '6379:6379'
