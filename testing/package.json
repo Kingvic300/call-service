@@ -8,11 +8,15 @@
     "build:browser-app": "node build-browser-app.mjs",
     "generate:users": "tsx users/generate-users.ts",
     "test": "npm run build:browser-app && playwright test",
-    "test:report": "npm run test && node lib/render-report.ts",
     "load:50": "npm run build:browser-app && tsx load-test/load-test.ts --participants=50",
     "load:100": "npm run build:browser-app && tsx load-test/load-test.ts --participants=100",
     "load:250": "npm run build:browser-app && tsx load-test/load-test.ts --participants=250",
-    "load:500": "npm run build:browser-app && tsx load-test/load-test.ts --participants=500"
+    "load:500": "npm run build:browser-app && tsx load-test/load-test.ts --participants=500",
+    "stress": "tsx stress/coordinator.ts --processes=5 --participants=100",
+    "stress:reliable": "tsx stress/coordinator.ts --processes=2 --participants=30",
+    "stress:turn": "tsx stress/coordinator.ts --processes=2 --participants=15 --turn-only=true",
+    "stress:loss": "tsx stress/coordinator.ts --processes=2 --participants=15 --loss=0.15",
+    "stress:latency": "tsx stress/coordinator.ts --processes=2 --participants=15 --latency=250"
   },
   "devDependencies": {
     "@faker-js/faker": "^9.2.0",
@@ -27,6 +31,7 @@
   "dependencies": {
     "jsonwebtoken": "^9.0.2",
     "mediasoup-client": "^3.11.0",
-    "socket.io-client": "^4.8.1"
+    "socket.io-client": "^4.8.1",
+    "werift": "^0.24.2"
   }
 }
