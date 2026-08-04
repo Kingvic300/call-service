@@ -52,6 +52,25 @@ export class TestCallClient {
   private mediaElements: HTMLMediaElement[] = [];
 
   async connect(baseUrl: string, namespace: string, token: string): Promise<void> {
+    // A second connect() call (scenario 14: reconnect after a simulated
+    // network drop) means whatever transports/producers/consumers existed
+    // on the old socket are dead — call-service's own reconnect path closes
+    // them all server-side (docs/INTEGRATION.md §2.3 step 7: "producers and
+    // consumers never survive a reconnect"), so reusing the stale client-side
+    // references here would hand a since-deleted transportId to the next
+    // produce()/consume() call ("Transport not found"). Mirrors the real
+    // app's resetTransportState (meetings-demo-frontend/src/lib/callClient.ts).
+    if (this.socket) {
+      for (const producer of this.producers.values()) producer.close();
+      this.producers.clear();
+      for (const consumer of this.consumers.values()) consumer.close();
+      this.consumers.clear();
+      this.sendTransport?.close();
+      this.recvTransport?.close();
+      this.sendTransport = undefined;
+      this.recvTransport = undefined;
+    }
+
     this.socket = io(`${baseUrl}${namespace}`, {
       auth: { token },
       transports: ['websocket'],
