@@ -121,6 +121,21 @@ export class SignalingService {
         clearTimeout(existing.pendingLeaveTimer);
         existing.pendingLeaveTimer = undefined;
       }
+      // The old socket's transports/producers/consumers belong to a peer
+      // connection the browser already discarded (see the client's
+      // resetTransportState, called right after it reconnects) — left open
+      // here they leak mediasoup transports/producers forever and leave
+      // every other participant's consumer pointed at a producer whose RTP
+      // stopped the moment the tab dropped, showing a frozen last frame
+      // until this peer happens to re-toggle their camera/mic.
+      // closeAllMedia()'s transport.close() cascades to producer.close(),
+      // which mediasoup itself propagates to each remote consumer's
+      // 'producerclose' event, so the existing consume() handler notifies
+      // those peers correctly and clears the stale tile.
+      if (existing.presenting) this.screenShare.onStopped(meeting, existing);
+      existing.closeAllMedia();
+      existing.audioMuted = true;
+      existing.videoEnabled = false;
       existing.socketId = client.id;
       client.data.meetingId = meetingId;
       client.data.userId = user.id;
@@ -132,6 +147,14 @@ export class SignalingService {
     const role = this.participantService.resolveRole(meeting, user.id);
 
     if (meeting.waitingRoomEnabled && role !== ParticipantRole.HOST) {
+      // Stamped so handleDisconnect (below) can find and evict this entry if
+      // the visitor closes the tab before a host admits/rejects them —
+      // without meetingId/userId on the socket, a disconnect while waiting
+      // was previously invisible to the gateway's handleDisconnect (it
+      // bails out on `if (!meetingId) return`), leaving a "waiting to join"
+      // entry that no host could ever clear pointing at a dead socket.
+      client.data.meetingId = meetingId;
+      client.data.userId = user.id;
       this.waitingRoomService.add(meeting, {
         userId: user.id,
         displayName: user.displayName,
@@ -218,8 +241,26 @@ export class SignalingService {
     this.finalizeLeave(meeting, participant.userId);
   }
 
-  /** Called from handleDisconnect — gives brief reconnect tolerance before tearing down media. */
-  scheduleDisconnectCleanup(client: Socket, meeting: Meeting): void {
+  /**
+   * Single entry point both gateways' handleDisconnect should call. A
+   * dropped socket is either a seated participant (gets the reconnect grace
+   * period below) or someone still parked in the waiting room — the latter
+   * has no media/grace semantics to preserve, so it's evicted immediately
+   * rather than sitting in `meeting.waitingParticipants` forever pointing at
+   * a socket that will never come back.
+   */
+  handleDisconnect(client: Socket, meeting: Meeting): void {
+    const userId = client.data.userId as string | undefined;
+    if (!userId) return;
+    if (meeting.waitingParticipants.get(userId)?.socketId === client.id) {
+      meeting.waitingParticipants.delete(userId);
+      return;
+    }
+    this.scheduleDisconnectCleanup(client, meeting);
+  }
+
+  /** Gives brief reconnect tolerance before tearing down media. */
+  private scheduleDisconnectCleanup(client: Socket, meeting: Meeting): void {
     const userId = client.data.userId as string | undefined;
     if (!userId) return;
     const participant = this.participantService.findByUserId(meeting, userId);

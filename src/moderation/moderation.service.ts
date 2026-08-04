@@ -66,8 +66,20 @@ export class ModerationService {
 
   removeParticipant(meeting: Meeting, actor: ModerationActor, targetUserId: string): void {
     this.assert(meeting, actor, Permission.REMOVE_PARTICIPANT);
-    const target = this.participants.removeParticipant(meeting, targetUserId);
+    const target = this.participants.findByUserId(meeting, targetUserId);
     if (!target) throw new NotFoundException(`Participant ${targetUserId} not in meeting`);
+
+    // REMOVE_PARTICIPANT is granted to MODERATOR by the default permission
+    // matrix (a moderator is expected to police regular participants) —
+    // without this check, any moderator the host promoted could kick the
+    // host themselves out of their own meeting. The trusted REST path
+    // (already authorized upstream by the real backend, e.g. an admin
+    // action) is deliberately exempt.
+    if (actor.role === ParticipantRole.MODERATOR && target.role === ParticipantRole.HOST) {
+      throw new ForbiddenException('Moderators cannot remove the host');
+    }
+
+    this.participants.removeParticipant(meeting, targetUserId);
 
     this.broadcaster.emitToMeeting(meeting.namespace, meeting.id, ServerEvent.PARTICIPANT_REMOVED, {
       peerId: targetUserId,

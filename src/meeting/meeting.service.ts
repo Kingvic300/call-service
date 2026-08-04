@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { types as mediasoupTypes } from 'mediasoup';
 import { RouterManagerService } from '../mediasoup/router-manager.service';
 import { RealtimeBroadcaster } from '../websocket/realtime-broadcaster.service';
+import { ChatService } from '../chat/chat.service';
 import { MeetingMode, MeetingType } from '../interfaces/meeting-type.enum';
 import { ServerEvent } from '../interfaces/socket-events.enum';
 import { Meeting } from './entities/meeting.entity';
@@ -27,6 +28,7 @@ export class MeetingService {
     @Inject(MEETING_REPOSITORY) private readonly repository: IMeetingRepository,
     private readonly routerManager: RouterManagerService,
     private readonly broadcaster: RealtimeBroadcaster,
+    private readonly chatService: ChatService,
   ) {}
 
   create(params: CreateMeetingParams): Meeting {
@@ -91,6 +93,11 @@ export class MeetingService {
     meeting.waitingParticipants.clear();
 
     this.routerManager.closeRouter(id);
+    // Chat history is kept in its own per-meeting buffer (see ChatService)
+    // for the meeting's whole (unbounded) lifetime — without this, every
+    // meeting that's ever run leaves its history entry behind forever, a
+    // slow, permanent leak for a long-running server.
+    this.chatService.clearHistory(id);
     this.logger.log(`Meeting ${id} ended: ${reason}`);
     return meeting;
   }

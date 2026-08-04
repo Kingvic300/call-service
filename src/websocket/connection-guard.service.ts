@@ -47,6 +47,16 @@ export class ConnectionGuardService {
     return this.eventLimiter.consume(client.id);
   }
 
+  /**
+   * Must be called from every gateway's handleDisconnect. socket.io never
+   * reuses a socket id, so without this the eventLimiter's per-socket hit
+   * map only ever grows — one abandoned entry per connection this server
+   * has ever seen since boot, for as long as the process stays up.
+   */
+  releaseConnection(client: Socket): void {
+    this.eventLimiter.reset(client.id);
+  }
+
   private extractToken(client: Socket): string | undefined {
     const authToken = client.handshake.auth?.token as string | undefined;
     if (authToken) return authToken;

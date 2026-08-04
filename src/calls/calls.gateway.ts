@@ -74,11 +74,12 @@ export class CallsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
   }
 
   handleDisconnect(client: Socket): void {
+    this.guard.releaseConnection(client);
     const meetingId = client.data.meetingId as string | undefined;
     if (!meetingId) return;
     const meeting = this.meetingService.find(meetingId);
     if (!meeting || meeting.isEnded) return;
-    this.signaling.scheduleDisconnectCleanup(client, meeting);
+    this.signaling.handleDisconnect(client, meeting);
   }
 
   @SubscribeMessage(ClientEvent.JOIN_ROOM)

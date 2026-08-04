@@ -89,11 +89,12 @@ export class MeetingsGateway implements OnGatewayInit, OnGatewayConnection, OnGa
   }
 
   handleDisconnect(client: Socket): void {
+    this.guard.releaseConnection(client);
     const meetingId = client.data.meetingId as string | undefined;
     if (!meetingId) return;
     const meeting = this.meetingService.find(meetingId);
     if (!meeting || meeting.isEnded) return;
-    this.signaling.scheduleDisconnectCleanup(client, meeting);
+    this.signaling.handleDisconnect(client, meeting);
   }
 
   // ---- Core signaling (shared shape with CallsGateway) ----------------
