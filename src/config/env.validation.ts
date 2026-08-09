@@ -35,6 +35,24 @@ class EnvironmentVariables {
   @IsString()
   REDIS_URL?: string;
 
+  // Multi-instance mode (only meaningful once REDIS_URL is set — see
+  // src/redis/redis.module.ts and src/meeting/meeting-directory.service.ts).
+  // Falls back to `${hostname}-${pid}` at runtime if unset — see
+  // config.module.ts's INSTANCE_CONFIG factory.
+  @IsOptional()
+  @IsString()
+  INSTANCE_ID?: string;
+
+  // Base URL other instances use to reach this one for REST forwarding
+  // (moderation calls that land on an instance that isn't a meeting's
+  // owner) and that clients use to open their Socket.IO connection against
+  // the right instance. Falls back to http://127.0.0.1:${PORT}, which only
+  // works for same-host multi-instance testing — MUST be overridden to a
+  // real reachable address for actual multi-host deployment.
+  @IsOptional()
+  @IsString()
+  INSTANCE_INTERNAL_URL?: string;
+
   @IsOptional()
   @Type(() => Number)
   @IsInt()

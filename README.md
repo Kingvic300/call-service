@@ -116,23 +116,31 @@ hand, screen share (single-presenter enforcement), host controls (mute/unmute-re
 kick/lock/unlock/end/disable-chat/disable-reactions/disable-screenshare/promote/demote),
 configurable permissions (`interfaces/permission.enum.ts` + per-meeting overrides), waiting
 room (admit/reject), coturn credential generation, rate limiting (connection + per-event),
-structured logging, health check, Prometheus metrics, graceful worker respawn, Docker.
+structured logging, health check, Prometheus metrics, graceful worker respawn, Docker,
+**cross-instance signaling** (opt-in via `REDIS_URL` — Socket.IO Redis adapter, a
+Redis-backed meeting-ownership directory, sticky routing at socket join, and transparent
+REST forwarding for moderation calls that land on a non-owning instance; see
+"Multi-instance deployment" in `docs/INTEGRATION.md`).
 
 **Architecture only, not fully implemented:**
 - **Recording**: no muxing/storage pipeline. The natural extension point is a
   `PlainTransport` consuming each producer server-side and piping to an external recorder
   (e.g. GStreamer/ffmpeg over RTP) — intentionally not built, since it needs a storage/
   encoding decision this spec didn't make.
-- **Cross-instance horizontal scaling**: `IMeetingRepository` is in-memory
-  (`meeting/meeting.repository.ts`), behind a DI token specifically so it can be swapped for
-  a Redis-backed implementation without touching call sites — but a single mediasoup
-  Router only ever exists in one process's memory, so scaling past one instance also needs
-  sticky routing (a given meetingId always reaches the same instance) or a Socket.IO Redis
-  adapter (`@socket.io/redis-adapter`, already a dependency, not yet wired into `main.ts`)
-  plus cross-instance mediasoup piping (`router.pipeToRouter`) — a real feature, not a
-  config flag, and out of scope here.
-- **Room sharding**: the worker-pool load-balancing is the foundation; a `shardId`/
-  consistent-hash routing layer across multiple call-service instances isn't built.
+- **Room sharding across instances**: cross-instance *signaling* now works (see above),
+  but a single meeting's mediasoup Router still only ever exists on the one instance that
+  created it — there is no cross-instance mediasoup piping yet (`router.pipeToRouter`), so
+  a meeting whose participant count exceeds one instance's local worker capacity has
+  nowhere to overflow to. The worker-pool load-balancing (`WorkerPoolService`) is the
+  foundation for this; the `shardId`/consistent-hash routing layer across instances isn't
+  built.
+- **`IMeetingRepository` stays in-memory on purpose**: a Meeting's live Participants own
+  process-bound mediasoup Transport/Producer/Consumer objects (see
+  `participant/entities/participant.entity.ts`) that can't be serialized into Redis or
+  reconstructed on another instance — so instead of swapping this repository's storage,
+  cross-instance visibility is handled by a separate, purpose-built ownership directory
+  (`meeting/meeting-directory.service.ts`) plus REST forwarding to whichever instance
+  actually holds the live state. See that file's doc comment for the full reasoning.
 
 ## What was and wasn't tested
 

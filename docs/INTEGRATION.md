@@ -59,8 +59,16 @@ Call state (`toStateJSON()`), same shape every endpoint returns:
   waitingRoomEnabled: boolean;
   activePresenterId: string | null;
   participantCount: number;
+  instanceUrl?: string; // multi-instance mode only — see §5
 }
 ```
+
+> **Multi-instance deployments only** (§5): `instanceUrl` names the specific call-service
+> instance that owns this call/meeting's mediasoup Router. Hand it to the client alongside
+> `id` — the client's Socket.IO connection must be opened against `instanceUrl`, not
+> whatever base URL your backend itself used to create the call. Absent (`undefined`) when
+> `REDIS_URL` isn't set (single-instance mode) — clients keep connecting to the one
+> instance as before.
 
 Typical flow: your backend creates the call record via `POST /calls` when a user initiates
 a 1:1 call (after your own ring/accept logic decides the call should actually start), hands
@@ -390,3 +398,40 @@ level (10 simulated Socket.IO clients, no real browser/WebRTC stack in this envi
 Before wiring a production frontend against this, do one real two-browser call and confirm
 audio/video actually flows — the signaling contract above is verified, the media path is
 not.
+
+## 5. Multi-instance deployment
+
+Everything in §1–§4 above describes the single-instance contract, which is unchanged.
+This section only applies once you run more than one call-service instance behind a load
+balancer with `REDIS_URL` set on every instance (see `.env.example`'s "Redis /
+multi-instance" section and `docker-compose.yml`'s `call-service`/`call-service-b`/`redis`
+services for a runnable local example, `--profile scaling`).
+
+**What's implemented:** each meeting's mediasoup Router still lives on exactly one
+instance (the one whose REST call created it) — there is no cross-instance media routing
+yet (that's `router.pipeToRouter`, tracked as a separate follow-up in the README). What
+multi-instance mode adds is making that single-instance meeting reachable correctly no
+matter which instance a request/connection happens to land on:
+
+- **Socket.IO broadcasts fan out across instances** (Redis adapter) — `emitToMeeting`/
+  `emitToSocket`/etc. reach a participant regardless of which instance their socket is on.
+- **REST calls are transparently forwarded** to the meeting's actual owner. You can send
+  `POST /meetings/:id/kick` (or any other `:id`-scoped call under `/meetings`, `/calls`) to
+  *any* instance behind your load balancer — if it isn't the owner, it forwards the request
+  and streams back the owner's response. You don't need your own routing logic for REST.
+- **Socket connections are NOT forwarded** — a live WebRTC signaling session can't be
+  proxied to another process. This is why `instanceUrl` exists (§1): after `POST /calls` or
+  `POST /meetings`, open your Socket.IO connection against `instanceUrl`, not your load
+  balancer's default routing.
+- **Defense in depth**: if a socket connects to the wrong instance anyway (stale client
+  cache, a load balancer that isn't meeting-aware), `joinRoom`'s ack response is:
+  ```ts
+  { success: false, error: 'WRONG_INSTANCE', data: { redirectUrl: string } }
+  ```
+  Reconnect your Socket.IO client to `redirectUrl` and retry `joinRoom`.
+
+**Not yet implemented** (tracked as follow-up phases, see README): cross-instance media
+routing for a single meeting that outgrows one instance's local worker capacity (room
+sharding via `pipeToRouter`), and the recording pipeline. Neither blocks running multiple
+instances today — they only matter once one meeting's participant count needs to spill
+across instances, or you want server-side recording.

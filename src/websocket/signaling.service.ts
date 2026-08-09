@@ -1,9 +1,10 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Socket } from 'socket.io';
 import { types as mediasoupTypes } from 'mediasoup';
 import { MeetingService } from '../meeting/meeting.service';
 import { WaitingRoomService } from '../meeting/waiting-room.service';
+import { MeetingDirectoryService } from '../meeting/meeting-directory.service';
 import { Meeting } from '../meeting/entities/meeting.entity';
 import { Participant } from '../participant/entities/participant.entity';
 import { ParticipantService } from '../participant/participant.service';
@@ -19,6 +20,8 @@ import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interfa
 import { ServerEvent } from '../interfaces/socket-events.enum';
 import { MeetingType } from '../interfaces/meeting-type.enum';
 import { ParticipantRole } from '../interfaces/role.enum';
+import { INSTANCE_CONFIG, InstanceAppConfig } from '../config/config.module';
+import { WrongInstanceError } from './wrong-instance.error';
 
 export interface WaitingResult {
   waiting: true;
@@ -67,6 +70,7 @@ export class SignalingService {
     private readonly meetingService: MeetingService,
     private readonly participantService: ParticipantService,
     private readonly waitingRoomService: WaitingRoomService,
+    private readonly meetingDirectory: MeetingDirectoryService,
     private readonly routerManager: RouterManagerService,
     private readonly transportService: TransportService,
     private readonly producerConsumer: ProducerConsumerService,
@@ -74,6 +78,7 @@ export class SignalingService {
     private readonly coturn: CoturnService,
     private readonly chatService: ChatService,
     private readonly broadcaster: RealtimeBroadcaster,
+    @Inject(INSTANCE_CONFIG) private readonly instanceConfig: InstanceAppConfig,
     config: ConfigService,
   ) {
     this.disconnectGraceMs = config.get<number>('DISCONNECT_GRACE_PERIOD_MS', 10000);
@@ -108,7 +113,45 @@ export class SignalingService {
     return participant;
   }
 
+  /**
+   * Defense-in-depth for sticky routing. The primary mechanism is that REST
+   * create responses already carry `instanceUrl` (Meeting.toStateJSON) so a
+   * well-behaved client opens its socket against the right instance from
+   * the start — a raw WebRTC signaling session can't be transparently
+   * forwarded to another process the way a REST call can. This check
+   * catches the case where a socket lands here anyway (stale client cache,
+   * a naive round-robin LB with no meeting-aware routing) and tells the
+   * client where to actually go instead of silently operating against a
+   * router this instance doesn't have.
+   */
+  private async assertOwnedByThisInstance(meetingId: string): Promise<void> {
+    const owner = await this.meetingDirectory.getOwner(meetingId);
+    if (!owner) {
+      // No directory entry — either single-instance mode (no-op directory),
+      // a meeting that doesn't exist anywhere (let getMeetingForNamespace,
+      // called right after this, 404 it the normal way), or a lost/expired
+      // entry for a meeting this instance genuinely does hold locally, in
+      // which case claiming it here is a defensive fallback (not the normal
+      // path — MeetingService.create already registers ownership at
+      // creation). Checked via meetingService.find rather than
+      // getMeetingForNamespace here since we don't want to throw yet.
+      if (this.meetingService.find(meetingId)) {
+        await this.meetingDirectory.registerOwnership(meetingId, this.instanceConfig);
+      }
+      return;
+    }
+    if (owner.instanceId !== this.instanceConfig.instanceId) {
+      throw new WrongInstanceError(owner.internalUrl);
+    }
+  }
+
   async joinRoom(client: Socket, meetingId: string, namespace: string): Promise<WaitingResult | JoinedResult> {
+    // Ownership must be checked BEFORE any local-existence lookup — a
+    // meeting owned by another instance was never created in *this*
+    // instance's in-memory repository, so getMeetingForNamespace would
+    // otherwise throw a plain "not found" instead of redirecting the client
+    // to where the meeting actually lives.
+    await this.assertOwnedByThisInstance(meetingId);
     const meeting = this.getMeetingForNamespace(meetingId, namespace);
     if (meeting.isEnded) throw new BadRequestException('Meeting has ended');
 

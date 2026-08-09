@@ -23,6 +23,13 @@ services:
       JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
       INTERNAL_API_KEYS: ${INTERNAL_API_KEYS}
       CORS_ORIGIN: ${CORS_ORIGIN:-*}
+      # Unset by default (single-instance mode, unchanged behavior). Export
+      # REDIS_URL before `docker compose --profile scaling up` to turn this
+      # instance into "instance A" of a multi-instance fleet alongside
+      # call-service-b below.
+      REDIS_URL: ${REDIS_URL:-}
+      INSTANCE_ID: ${INSTANCE_ID:-call-service-a}
+      INSTANCE_INTERNAL_URL: ${INSTANCE_INTERNAL_URL:-http://127.0.0.1:4000}
       MEDIASOUP_NUM_WORKERS: ${MEDIASOUP_NUM_WORKERS:-1}
       MEDIASOUP_ANNOUNCED_IP: ${MEDIASOUP_ANNOUNCED_IP}
       MEDIASOUP_WEBRTC_PORT: 44000
@@ -48,11 +55,54 @@ services:
     command: ['-c', '/etc/coturn/turnserver.conf']
 
   # Optional — only needed once you run more than one call-service instance
-  # behind a load balancer (fans Socket.IO broadcasts out across instances).
-  # Not relevant to a single-droplet MVP deployment.
+  # behind a load balancer (fans Socket.IO broadcasts out across instances,
+  # backs the meeting-ownership directory). Not relevant to a
+  # single-droplet MVP deployment.
   redis:
     image: redis:7-alpine
     restart: unless-stopped
     profiles: ['scaling']
     ports:
       - '6379:6379'
+
+  # A second call-service instance, for local multi-instance testing (see
+  # scripts/cross-instance-test.js and docs/INTEGRATION.md "Multi-instance
+  # deployment"). Both instances share `network_mode: host`, so PORT and
+  # MEDIASOUP_WEBRTC_PORT must not collide with instance A's — that's the
+  # only reason this exists as a near-duplicate service instead of a
+  # `--scale` flag on `call-service`, which would try to reuse the same
+  # ports. Requires `redis` (`--profile scaling`) to actually behave as a
+  # second instance of the same fleet rather than an unrelated standalone
+  # service.
+  call-service-b:
+    build: .
+    image: ${CALL_SERVICE_IMAGE:-call-service:latest}
+    restart: unless-stopped
+    network_mode: host
+    mem_limit: ${CALL_SERVICE_MEM_LIMIT:-900m}
+    profiles: ['scaling']
+    environment:
+      NODE_ENV: production
+      PORT: 4001
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      INTERNAL_API_KEYS: ${INTERNAL_API_KEYS}
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+      REDIS_URL: redis://127.0.0.1:6379
+      INSTANCE_ID: call-service-b
+      INSTANCE_INTERNAL_URL: http://127.0.0.1:4001
+      MEDIASOUP_NUM_WORKERS: ${MEDIASOUP_NUM_WORKERS:-1}
+      MEDIASOUP_ANNOUNCED_IP: ${MEDIASOUP_ANNOUNCED_IP}
+      MEDIASOUP_WEBRTC_PORT: 44010
+      TURN_HOST: ${TURN_HOST}
+      TURN_PORT: 3478
+      TURN_TLS_PORT: 5349
+      TURN_SECRET: ${TURN_SECRET}
+    depends_on:
+      - coturn
+      - redis
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:4001/health']
+      interval: 30s
+      timeout: 5s
+      retries: 3

@@ -6,8 +6,10 @@ import { RealtimeBroadcaster } from '../websocket/realtime-broadcaster.service';
 import { ChatService } from '../chat/chat.service';
 import { MeetingMode, MeetingType } from '../interfaces/meeting-type.enum';
 import { ServerEvent } from '../interfaces/socket-events.enum';
+import { INSTANCE_CONFIG, InstanceAppConfig } from '../config/config.module';
 import { Meeting } from './entities/meeting.entity';
 import { IMeetingRepository, MEETING_REPOSITORY } from './meeting.repository';
+import { MeetingDirectoryService } from './meeting-directory.service';
 
 export interface CreateMeetingParams {
   id?: string;
@@ -26,9 +28,11 @@ export class MeetingService {
 
   constructor(
     @Inject(MEETING_REPOSITORY) private readonly repository: IMeetingRepository,
+    @Inject(INSTANCE_CONFIG) private readonly instanceConfig: InstanceAppConfig,
     private readonly routerManager: RouterManagerService,
     private readonly broadcaster: RealtimeBroadcaster,
     private readonly chatService: ChatService,
+    private readonly meetingDirectory: MeetingDirectoryService,
   ) {}
 
   create(params: CreateMeetingParams): Meeting {
@@ -47,8 +51,15 @@ export class MeetingService {
       reactionsEnabled: params.reactionsEnabled,
       screenShareEnabled: params.screenShareEnabled,
     });
+    meeting.ownerInternalUrl = this.instanceConfig.internalUrl;
 
     this.repository.save(meeting);
+    // This instance is the meeting's owner for the lifetime of its router —
+    // fire-and-forget (Redis absent or unreachable must never block/fail
+    // meeting creation itself, only cross-instance routing).
+    this.meetingDirectory
+      .registerOwnership(id, this.instanceConfig)
+      .catch((err: Error) => this.logger.warn(`Failed to register ownership for ${id}: ${err.message}`));
     this.logger.log(`Meeting ${id} created (type=${params.type}, host=${params.hostId})`);
     return meeting;
   }
@@ -98,6 +109,9 @@ export class MeetingService {
     // meeting that's ever run leaves its history entry behind forever, a
     // slow, permanent leak for a long-running server.
     this.chatService.clearHistory(id);
+    this.meetingDirectory
+      .clearOwnership(id)
+      .catch((err: Error) => this.logger.warn(`Failed to clear ownership for ${id}: ${err.message}`));
     this.logger.log(`Meeting ${id} ended: ${reason}`);
     return meeting;
   }

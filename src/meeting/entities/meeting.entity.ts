@@ -36,6 +36,15 @@ export class Meeting {
 
   activePresenterId: string | null = null;
 
+  /**
+   * This instance's own INSTANCE_INTERNAL_URL, stamped by MeetingService.create
+   * right after the meeting is created — surfaced in toStateJSON as
+   * `instanceUrl` so REST create responses tell the caller which instance's
+   * URL to open its Socket.IO connection against (see docs/INTEGRATION.md
+   * "Multi-instance deployment"). Undefined in single-instance mode.
+   */
+  ownerInternalUrl?: string;
+
   readonly participants = new Map<string, Participant>();
   readonly waitingParticipants = new Map<string, WaitingParticipant>();
 
@@ -81,6 +90,7 @@ export class Meeting {
       waitingRoomEnabled: this.waitingRoomEnabled,
       activePresenterId: this.activePresenterId,
       participantCount: this.participantCount,
+      instanceUrl: this.ownerInternalUrl,
     };
   }
 }

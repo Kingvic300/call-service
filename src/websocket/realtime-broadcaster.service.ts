@@ -48,14 +48,18 @@ export class RealtimeBroadcaster {
     this.namespaces.get(namespace)?.to(socketId).emit(event, payload);
   }
 
+  /**
+   * Every socket auto-joins a room equal to its own id, so `.in(socketId)`
+   * reaches it through the Socket.IO Redis adapter (when configured) even
+   * if it's connected to a different instance — a plain local
+   * `nsp.sockets.get(socketId)` lookup, used here previously, only ever
+   * saw sockets connected to *this* process and silently no-op'd for any
+   * other instance's participant once multi-instance mode landed.
+   */
   disconnectSocket(namespace: string, socketId: string, reason?: string): void {
-    const socket = this.namespaces.get(namespace)?.sockets.get(socketId);
-    if (!socket) return;
-    if (reason) socket.emit('errorEvent', { message: reason });
-    socket.disconnect(true);
-  }
-
-  isConnected(namespace: string, socketId: string): boolean {
-    return this.namespaces.get(namespace)?.sockets.has(socketId) ?? false;
+    const nsp = this.namespaces.get(namespace);
+    if (!nsp) return;
+    if (reason) nsp.to(socketId).emit('errorEvent', { message: reason });
+    nsp.in(socketId).disconnectSockets(true);
   }
 }
