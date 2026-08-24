@@ -1,7 +1,9 @@
 import { Controller, Get } from '@nestjs/common';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { WorkerPoolService } from '../workers/worker-pool.service';
 import { MeetingService } from '../meeting/meeting.service';
 
+@ApiTags('health')
 @Controller('health')
 export class HealthController {
   constructor(
@@ -10,6 +12,7 @@ export class HealthController {
   ) {}
 
   @Get()
+  @ApiOperation({ summary: 'Service health, mediasoup worker stats, and meeting counts' })
   check() {
     const workers = this.workerPool.getStats();
     const healthy = workers.length > 0;
