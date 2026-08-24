@@ -1,4 +1,4 @@
-import { ForbiddenException, Inject, Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { v4 as uuidv4 } from 'uuid';
 import { Meeting } from '../meeting/entities/meeting.entity';
@@ -29,7 +29,12 @@ export class ChatService {
     this.historyLimit = config.get<number>('CHAT_HISTORY_LIMIT', 200);
   }
 
-  addMessage(meeting: Meeting, senderId: string, senderName: string, text: string): ChatMessage {
+  addMessage(
+    meeting: Meeting,
+    senderId: string,
+    senderName: string,
+    text: string,
+  ): ChatMessage {
     if (!meeting.chatEnabled) {
       throw new ForbiddenException('Chat is disabled in this meeting');
     }
