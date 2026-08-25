@@ -337,7 +337,7 @@ export class SignalingService {
     client: Socket,
     meeting: Meeting,
     direction: TransportDirection,
-  ): Promise<ReturnType<TransportService['toParams']>> {
+  ): Promise<{ params: ReturnType<TransportService['toParams']> }> {
     const participant = this.requireParticipant(meeting, client);
     const router = this.routerManager.getRouter(meeting.id);
     const webRtcServer = this.routerManager.getWebRtcServer(meeting.id);
@@ -348,7 +348,11 @@ export class SignalingService {
       direction,
     });
     participant.addTransport(transport);
-    return this.transportService.toParams(transport);
+    // The frontend's mediasoup-client wrapper destructures `{ params }` off
+    // the ack (see PeerConnection.ts's createTransport/consume) — a
+    // convention carried over from the original nVerify protocol, which
+    // always wrapped transport/consumer params this way.
+    return { params: this.transportService.toParams(transport) };
   }
 
   async connectTransport(
@@ -445,7 +449,9 @@ export class SignalingService {
       });
     });
 
-    return params;
+    // Same `{ params }` wrapper as createTransport above — the client
+    // destructures `response.params` off this ack.
+    return { params };
   }
 
   private findProducer(meeting: Meeting, producerId: string): mediasoupTypes.Producer | undefined {
