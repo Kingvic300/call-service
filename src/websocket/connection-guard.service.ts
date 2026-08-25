@@ -32,14 +32,39 @@ export class ConnectionGuardService {
   /** Returns the authenticated user, or throws + the caller must disconnect the socket. */
   authenticate(client: Socket): AuthenticatedUser {
     const ip = client.handshake.address;
-    if (!this.connectionLimiter.consume(ip)) {
+    const token = this.extractToken(client);
+
+    if (!token) {
+      if (!this.connectionLimiter.consume(ip)) {
+        throw new UnauthorizedException('Too many connection attempts, slow down');
+      }
+      throw new UnauthorizedException('Missing auth token');
+    }
+
+    let user: AuthenticatedUser;
+    try {
+      user = this.authService.verifyUserToken(token);
+    } catch (err) {
+      // No verified identity to key by yet — fall back to the IP limiter so
+      // a flood of garbage/missing tokens is still throttled.
+      if (!this.connectionLimiter.consume(ip)) {
+        throw new UnauthorizedException('Too many connection attempts, slow down');
+      }
+      throw err;
+    }
+
+    // Keyed by the authenticated user rather than the socket's IP from here
+    // on: NTeam-Backend proxies every 1:1 call's upstream connection through
+    // its own single server IP (one new socket per call — see
+    // CallServiceProxyService.connectUpstream), so an IP-keyed limit here
+    // throttled the whole platform's call volume instead of any one user,
+    // tripping "Too many connection attempts" under ordinary traffic and
+    // disconnecting the proxy mid-joinRoom (reason: "io server disconnect").
+    if (!this.connectionLimiter.consume(user.id)) {
       throw new UnauthorizedException('Too many connection attempts, slow down');
     }
 
-    const token = this.extractToken(client);
-    if (!token) throw new UnauthorizedException('Missing auth token');
-
-    return this.authService.verifyUserToken(token);
+    return user;
   }
 
   /** Per-socket event flood guard, called at the top of every @SubscribeMessage handler. */
