@@ -6,6 +6,7 @@ import { ParticipantService } from './participant.service';
 
 @ApiTags('participants')
 @ApiSecurity('serviceApiKey')
+@ApiSecurity('serviceSecretKey')
 @Controller('participants')
 @UseGuards(ApiKeyGuard)
 export class ParticipantController {
@@ -15,7 +16,7 @@ export class ParticipantController {
   ) {}
 
   @Get(':meetingId')
-  @ApiOperation({ summary: 'List a meeting\'s current participants' })
+  @ApiOperation({ summary: "List a meeting's current participants" })
   @ApiParam({ name: 'meetingId', description: 'Meeting id' })
   list(@Param('meetingId') meetingId: string) {
     const meeting = this.meetingService.getOrThrow(meetingId);
