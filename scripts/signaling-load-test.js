@@ -13,14 +13,15 @@
  *
  * Usage: node scripts/signaling-load-test.js
  * Requires the server running locally (npm run start:dev) with a known
- * JWT_SECRET, matched via the JWT_SECRET env var to this script.
+ * SERVICE_CREDENTIALS pair, matched via the API_KEY/SECRET_KEY env vars to
+ * this script (call-service authenticates the calling service via
+ * apiKey/secretKey, not per-user JWTs — see docs/INTEGRATION.md §2.1).
  */
-const jwt = require('jsonwebtoken');
 const { io } = require('socket.io-client');
 
 const BASE_URL = process.env.TEST_BASE_URL || 'http://localhost:4000';
-const JWT_SECRET = process.env.JWT_SECRET || 'change-me-to-a-long-random-secret';
-const API_KEY = (process.env.INTERNAL_API_KEYS || 'change-me-internal-key').split(',')[0].trim();
+const API_KEY = process.env.API_KEY || 'change-me-api-key';
+const SECRET_KEY = process.env.SECRET_KEY || 'change-me-secret-key';
 
 const results = [];
 function record(name, ok, detail) {
@@ -29,14 +30,10 @@ function record(name, ok, detail) {
   console.log(`[${icon}] ${name}${detail ? ' — ' + detail : ''}`);
 }
 
-function makeToken(userId, name) {
-  return jwt.sign({ sub: userId, name }, JWT_SECRET, { algorithm: 'HS256', expiresIn: '1h' });
-}
-
 async function httpJson(method, path, body) {
   const res = await fetch(`${BASE_URL}${path}`, {
     method,
-    headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY },
+    headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY, 'X-Secret-Key': SECRET_KEY },
     body: body ? JSON.stringify(body) : undefined,
   });
   const text = await res.text();
@@ -50,10 +47,10 @@ async function httpJson(method, path, body) {
   return json;
 }
 
-function connectClient(namespace, token) {
+function connectClient(namespace, userId, displayName) {
   return new Promise((resolve, reject) => {
     const socket = io(`${BASE_URL}${namespace}`, {
-      auth: { token },
+      auth: { apiKey: API_KEY, secretKey: SECRET_KEY, userId, displayName },
       transports: ['websocket'],
       reconnection: false,
       timeout: 5000,
@@ -118,9 +115,9 @@ async function testOneToOneCall(users) {
   const call = await httpJson('POST', '/calls', { callerId: alice.id });
   record('POST /calls creates a 1:1 call', !!call.id, `id=${call.id}`);
 
-  const aliceSocket = await connectClient('/calls', alice.token);
-  const bobSocket = await connectClient('/calls', bob.token);
-  record('Both users connect to /calls with valid JWT', true);
+  const aliceSocket = await connectClient('/calls', alice.id, alice.name);
+  const bobSocket = await connectClient('/calls', bob.id, bob.name);
+  record('Both users connect to /calls with valid apiKey/secretKey', true);
 
   const aliceJoin = await ack(aliceSocket, 'joinRoom', { meetingId: call.id });
   record('Alice joinRoom succeeds', aliceJoin.success, JSON.stringify(aliceJoin.error || ''));
@@ -187,13 +184,13 @@ async function testGroupMeeting(hostUser, otherUsers) {
   const meeting = await httpJson('POST', '/meetings', { hostId: hostUser.id, waitingRoomEnabled: false });
   record('POST /meetings creates a group meeting', !!meeting.id, `id=${meeting.id}`);
 
-  const hostSocket = await connectClient('/meetings', hostUser.token);
+  const hostSocket = await connectClient('/meetings', hostUser.id, hostUser.name);
   const hostJoin = await ack(hostSocket, 'joinRoom', { meetingId: meeting.id });
   record('Host joinRoom succeeds', hostJoin.success, JSON.stringify(hostJoin.error || ''));
 
   const guestSockets = [];
   for (const user of otherUsers) {
-    const socket = await connectClient('/meetings', user.token);
+    const socket = await connectClient('/meetings', user.id, user.name);
     const join = await ack(socket, 'joinRoom', { meetingId: meeting.id });
     if (!join.success) record(`Participant ${user.id} joinRoom`, false, JSON.stringify(join.error));
     guestSockets.push({ user, socket });
@@ -261,7 +258,7 @@ async function testUnauthorizedRejected() {
   // 'connect' event can fire a moment before the server kicks it. Wait for an
   // explicit disconnect/connect_error rather than trusting 'connect' alone.
   const socket = io(`${BASE_URL}/meetings`, {
-    auth: { token: 'not-a-real-jwt' },
+    auth: { apiKey: 'not-a-real-key', secretKey: 'not-a-real-secret', userId: 'unauthorized-test' },
     transports: ['websocket'],
     reconnection: false,
     timeout: 5000,
@@ -279,14 +276,14 @@ async function testUnauthorizedRejected() {
     });
   });
 
-  record('Connection with invalid JWT is rejected', rejected, rejected ? '' : 'socket stayed connected for 3s');
+  record('Connection with invalid apiKey/secretKey is rejected', rejected, rejected ? '' : 'socket stayed connected for 3s');
   socket.close();
 }
 
 async function main() {
   const users = Array.from({ length: 10 }, (_, i) => ({
     id: `loadtest-user-${i + 1}`,
-    token: makeToken(`loadtest-user-${i + 1}`, `Load Test User ${i + 1}`),
+    name: `Load Test User ${i + 1}`,
   }));
 
   console.log(`Running signaling load test against ${BASE_URL} with ${users.length} simulated accounts...\n`);

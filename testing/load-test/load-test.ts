@@ -26,7 +26,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
-import jwt from 'jsonwebtoken';
 import { io, Socket } from 'socket.io-client';
 import { config } from '../lib/config.js';
 import { restClient } from '../lib/rest-client.js';
@@ -113,16 +112,12 @@ async function runParticipant(
   durationSeconds: number,
 ): Promise<void> {
   const userId = `load-user-${index}`;
-  const token = jwt.sign({ sub: userId, name: `Load User ${index}` }, config.jwtSecret, {
-    algorithm: config.jwtAlgorithm,
-    expiresIn: '1h',
-  });
 
   const record = (event: string, ok: boolean, ms?: number, detail?: string) =>
     samples.push({ t: Date.now(), event, ok, ms, detail, roomIndex });
 
   const socket = io(`${config.callServiceWsUrl}/meetings`, {
-    auth: { token },
+    auth: { apiKey: config.apiKey, secretKey: config.secretKey, userId, displayName: `Load User ${index}` },
     transports: ['websocket'],
     reconnection: false,
     timeout: 10000,

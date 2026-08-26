@@ -80,9 +80,9 @@ export class MeetingsGateway
     this.logger.log(`${NAMESPACE} namespace initialized`);
   }
 
-  handleConnection(client: Socket): void {
+  async handleConnection(client: Socket): Promise<void> {
     try {
-      client.data.user = this.guard.authenticate(client);
+      client.data.user = await this.guard.authenticate(client);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unauthorized';
       this.logger.warn(

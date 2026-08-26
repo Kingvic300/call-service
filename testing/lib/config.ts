@@ -24,9 +24,14 @@ loadEnvFile();
 export const config = {
   callServiceUrl: process.env.CALL_SERVICE_URL ?? 'http://localhost:4000',
   callServiceWsUrl: process.env.CALL_SERVICE_WS_URL ?? process.env.CALL_SERVICE_URL ?? 'http://localhost:4000',
-  jwtSecret: process.env.JWT_SECRET ?? 'change-me-to-a-long-random-secret',
-  jwtAlgorithm: (process.env.JWT_ALGORITHM ?? 'HS256') as 'HS256',
-  internalApiKey: (process.env.INTERNAL_API_KEYS ?? 'change-me-internal-key').split(',')[0].trim(),
+  // Must match one apiKey:secretKey pair in the call-service instance's own
+  // SERVICE_CREDENTIALS — call-service now authenticates the *calling
+  // service* (this test harness, standing in for a real integrating
+  // backend), not individual end users, and trusts whatever userId/
+  // displayName this harness asserts per connection (see
+  // docs/INTEGRATION.md §2.1).
+  apiKey: process.env.TEST_API_KEY ?? 'change-me-api-key',
+  secretKey: process.env.TEST_SECRET_KEY ?? 'change-me-secret-key',
   browserAppPort: Number(process.env.BROWSER_APP_PORT ?? 8899),
 };
 

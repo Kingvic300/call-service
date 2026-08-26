@@ -19,9 +19,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 4000
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
-      INTERNAL_API_KEYS: ${INTERNAL_API_KEYS}
+      SERVICE_CREDENTIALS: ${SERVICE_CREDENTIALS}
       CORS_ORIGIN: ${CORS_ORIGIN:-*}
       # Unset by default (single-instance mode, unchanged behavior). Export
       # REDIS_URL before `docker compose --profile scaling up` to turn this
@@ -84,9 +82,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 4001
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
-      INTERNAL_API_KEYS: ${INTERNAL_API_KEYS}
+      SERVICE_CREDENTIALS: ${SERVICE_CREDENTIALS}
       CORS_ORIGIN: ${CORS_ORIGIN:-*}
       REDIS_URL: redis://127.0.0.1:6379
       INSTANCE_ID: call-service-b

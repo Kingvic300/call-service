@@ -66,14 +66,9 @@ export class MediaPeer {
   }
 
   async connect(namespace: '/calls' | '/meetings' = '/meetings'): Promise<void> {
-    const token = (await import('jsonwebtoken')).default.sign(
-      { sub: this.userId, name: this.userId },
-      config.jwtSecret,
-      { algorithm: config.jwtAlgorithm, expiresIn: '2h' },
-    );
     const start = Date.now();
     this.socket = io(`${config.callServiceWsUrl}${namespace}`, {
-      auth: { token },
+      auth: { apiKey: config.apiKey, secretKey: config.secretKey, userId: this.userId, displayName: this.userId },
       transports: ['websocket'],
       reconnection: false,
       timeout: 10000,

@@ -1,6 +1,7 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { AppConfigModule } from './config/config.module';
 import { RedisModule } from './redis/redis.module';
+import { CredentialsModule } from './credentials/credentials.module';
 import { AuthModule } from './auth/auth.module';
 import { WorkerPoolModule } from './workers/worker-pool.module';
 import { MediasoupModule } from './mediasoup/mediasoup.module';
@@ -25,6 +26,7 @@ import { CallsController } from './calls/calls.controller';
   imports: [
     AppConfigModule,
     RedisModule,
+    CredentialsModule,
     AuthModule,
     WorkerPoolModule,
     MediasoupModule,

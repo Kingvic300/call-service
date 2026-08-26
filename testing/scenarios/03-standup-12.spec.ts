@@ -1,6 +1,5 @@
 import { test, expect } from '@playwright/test';
 import { io, Socket } from 'socket.io-client';
-import jwt from 'jsonwebtoken';
 import { closePeers, loadUsers, openPeer, waitUntil } from '../lib/scenario-helpers.js';
 import { restClient } from '../lib/rest-client.js';
 import { config } from '../lib/config.js';
@@ -16,11 +15,10 @@ function ack<T>(socket: Socket, event: string, payload: unknown): Promise<{ succ
 }
 
 async function connectSignalingOnly(meetingId: string, userId: string): Promise<Socket> {
-  const token = jwt.sign({ sub: userId, name: userId }, config.jwtSecret, {
-    algorithm: config.jwtAlgorithm,
-    expiresIn: '1h',
+  const socket = io(`${config.callServiceWsUrl}/meetings`, {
+    auth: { apiKey: config.apiKey, secretKey: config.secretKey, userId, displayName: userId },
+    transports: ['websocket'],
   });
-  const socket = io(`${config.callServiceWsUrl}/meetings`, { auth: { token }, transports: ['websocket'] });
   await new Promise<void>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('connect timeout')), 10000);
     socket.once('connect', () => {

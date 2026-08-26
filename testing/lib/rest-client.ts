@@ -4,7 +4,11 @@ import { config } from './config.js';
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${config.callServiceUrl}${path}`, {
     method,
-    headers: { 'Content-Type': 'application/json', 'X-API-Key': config.internalApiKey },
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Api-Key': config.apiKey,
+      'X-Secret-Key': config.secretKey,
+    },
     body: body ? JSON.stringify(body) : undefined,
   });
   const text = await res.text();
