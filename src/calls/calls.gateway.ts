@@ -66,9 +66,11 @@ export class CallsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
     try {
       client.data.user = this.guard.authenticate(client);
     } catch (err) {
-      client.emit(ServerEvent.ERROR, {
-        message: err instanceof Error ? err.message : 'Unauthorized',
-      });
+      const message = err instanceof Error ? err.message : 'Unauthorized';
+      this.logger.warn(
+        `Rejected /calls connection ${client.id} from ${client.handshake.address}: ${message}`,
+      );
+      client.emit(ServerEvent.ERROR, { message });
       client.disconnect(true);
     }
   }
