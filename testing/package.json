@@ -21,7 +21,6 @@
   "devDependencies": {
     "@faker-js/faker": "^9.2.0",
     "@playwright/test": "^1.49.1",
-    "@types/jsonwebtoken": "^9.0.7",
     "@types/node": "^22.10.2",
     "esbuild": "^0.24.2",
     "playwright": "^1.49.1",
@@ -29,7 +28,6 @@
     "typescript": "^5.7.2"
   },
   "dependencies": {
-    "jsonwebtoken": "^9.0.2",
     "mediasoup-client": "^3.11.0",
     "socket.io-client": "^4.8.1",
     "werift": "^0.24.2"

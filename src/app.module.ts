@@ -1,6 +1,9 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { join } from 'path';
 import { AppConfigModule } from './config/config.module';
 import { RedisModule } from './redis/redis.module';
+import { CredentialsModule } from './credentials/credentials.module';
 import { AuthModule } from './auth/auth.module';
 import { WorkerPoolModule } from './workers/worker-pool.module';
 import { MediasoupModule } from './mediasoup/mediasoup.module';
@@ -20,11 +23,20 @@ import { MeetingOwnershipMiddleware } from './meeting/meeting-ownership.middlewa
 import { MeetingController } from './meeting/meeting.controller';
 import { ModerationController } from './moderation/moderation.controller';
 import { CallsController } from './calls/calls.controller';
+import { DeveloperModule } from './developer/developer.module';
 
 @Module({
   imports: [
+    // The Naelix marketing/developer page (public/index.html) — served at
+    // `/` so it's the app's entry point. Registered before every API module
+    // below is mostly cosmetic (Nest routes by path, not registration
+    // order), but keeps "what a browser hits first" readable at a glance.
+    ServeStaticModule.forRoot({
+      rootPath: join(__dirname, '..', 'public'),
+    }),
     AppConfigModule,
     RedisModule,
+    CredentialsModule,
     AuthModule,
     WorkerPoolModule,
     MediasoupModule,
@@ -40,6 +52,7 @@ import { CallsController } from './calls/calls.controller';
     MeetingsModule,
     HealthModule,
     MetricsModule,
+    DeveloperModule,
   ],
 })
 export class AppModule implements NestModule {

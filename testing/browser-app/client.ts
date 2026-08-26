@@ -51,7 +51,14 @@ export class TestCallClient {
   autoConsume = true;
   private mediaElements: HTMLMediaElement[] = [];
 
-  async connect(baseUrl: string, namespace: string, token: string): Promise<void> {
+  async connect(
+    baseUrl: string,
+    namespace: string,
+    apiKey: string,
+    secretKey: string,
+    userId: string,
+    displayName?: string,
+  ): Promise<void> {
     // A second connect() call (scenario 14: reconnect after a simulated
     // network drop) means whatever transports/producers/consumers existed
     // on the old socket are dead — call-service's own reconnect path closes
@@ -72,7 +79,7 @@ export class TestCallClient {
     }
 
     this.socket = io(`${baseUrl}${namespace}`, {
-      auth: { token },
+      auth: { apiKey, secretKey, userId, displayName },
       transports: ['websocket'],
       reconnection: true,
       reconnectionDelay: 500,

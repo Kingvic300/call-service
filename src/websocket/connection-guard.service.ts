@@ -30,25 +30,27 @@ export class ConnectionGuardService {
   }
 
   /** Returns the authenticated user, or throws + the caller must disconnect the socket. */
-  authenticate(client: Socket): AuthenticatedUser {
+  async authenticate(client: Socket): Promise<AuthenticatedUser> {
     const ip = client.handshake.address;
-    const token = this.extractToken(client);
-
-    if (!token) {
-      if (!this.connectionLimiter.consume(ip)) {
-        throw new UnauthorizedException('Too many connection attempts, slow down');
-      }
-      throw new UnauthorizedException('Missing auth token');
-    }
+    const { apiKey, secretKey, userId, displayName, avatarUrl } =
+      this.extractCredentials(client);
 
     let user: AuthenticatedUser;
     try {
-      user = this.authService.verifyUserToken(token);
+      user = await this.authService.verifyServiceUser(
+        apiKey,
+        secretKey,
+        userId,
+        displayName,
+        avatarUrl,
+      );
     } catch (err) {
       // No verified identity to key by yet — fall back to the IP limiter so
       // a flood of garbage/missing tokens is still throttled.
       if (!this.connectionLimiter.consume(ip)) {
-        throw new UnauthorizedException('Too many connection attempts, slow down');
+        throw new UnauthorizedException(
+          'Too many connection attempts, slow down',
+        );
       }
       throw err;
     }
@@ -61,7 +63,9 @@ export class ConnectionGuardService {
     // tripping "Too many connection attempts" under ordinary traffic and
     // disconnecting the proxy mid-joinRoom (reason: "io server disconnect").
     if (!this.connectionLimiter.consume(user.id)) {
-      throw new UnauthorizedException('Too many connection attempts, slow down');
+      throw new UnauthorizedException(
+        'Too many connection attempts, slow down',
+      );
     }
 
     return user;
@@ -82,13 +86,21 @@ export class ConnectionGuardService {
     this.eventLimiter.reset(client.id);
   }
 
-  private extractToken(client: Socket): string | undefined {
-    const authToken = client.handshake.auth?.token as string | undefined;
-    if (authToken) return authToken;
-
-    const header = client.handshake.headers.authorization;
-    if (header?.startsWith('Bearer ')) return header.slice('Bearer '.length);
-
-    return undefined;
+  private extractCredentials(client: Socket): {
+    apiKey?: string;
+    secretKey?: string;
+    userId?: string;
+    displayName?: string;
+    avatarUrl?: string;
+  } {
+    const auth = (client.handshake.auth ?? {}) as Record<string, unknown>;
+    const asString = (v: unknown) => (typeof v === 'string' ? v : undefined);
+    return {
+      apiKey: asString(auth.apiKey),
+      secretKey: asString(auth.secretKey),
+      userId: asString(auth.userId),
+      displayName: asString(auth.displayName),
+      avatarUrl: asString(auth.avatarUrl),
+    };
   }
 }

@@ -22,5 +22,5 @@
     "esModuleInterop": true,
     "resolveJsonModule": true
   },
-  "exclude": ["node_modules", "dist", "testing"]
+  "exclude": ["node_modules", "dist", "testing", "scripts"]
 }

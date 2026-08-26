@@ -3,9 +3,14 @@
 This is the contract for two audiences:
 
 1. **Backend engineers** — server-to-server REST calls (create/end meetings, moderation),
-   authenticated with an API key.
-2. **Frontend/mobile engineers** — Socket.IO signaling for live calls, authenticated with a
-   user JWT.
+   authenticated with an (apiKey, secretKey) pair.
+2. **Frontend/mobile engineers** — Socket.IO signaling for live calls, authenticated with
+   that same (apiKey, secretKey) pair plus a plainly-asserted user identity (userId/
+   displayName/avatarUrl) — call-service has no account relationship with end users of its
+   own, so unlike a typical app it never verifies an end user's identity directly. Instead
+   it authenticates the *service* cryptographically (the same trust model Twilio/Daily/
+   Zoom-style video platform APIs use) and trusts whatever identity that already-
+   authenticated service asserts for a given connection.
 
 If you haven't read [../README.md](../README.md) yet, read it first — it explains *why*
 the service is split into `/calls` (1:1) and `/meetings` (group), and what's fully
@@ -20,12 +25,17 @@ Base URL: wherever call-service is deployed (e.g. `http://localhost:4000` locall
 Every endpoint below requires:
 
 ```
-X-API-Key: <one of INTERNAL_API_KEYS>
+X-Api-Key: <your apiKey>
+X-Secret-Key: <your secretKey>
 ```
 
-Missing or invalid key → `401 { "message": "Missing or invalid X-API-Key header", "error": "Unauthorized", "statusCode": 401 }`.
+One (apiKey, secretKey) pair per integrating service, configured server-side via
+`SERVICE_CREDENTIALS` (comma-separated `apiKey:secretKey` pairs, so a new integrating
+service or a rotated key can be added without downtime).
 
-These endpoints are for your backend to call — **never expose `INTERNAL_API_KEYS` to a
+Missing or invalid headers → `401 { "message": "Missing or invalid X-API-Key/X-Secret-Key headers", "error": "Unauthorized", "statusCode": 401 }`.
+
+These endpoints are for your backend to call — **never expose your secretKey to a
 browser or mobile client.**
 
 ### 1:1 calls — `/calls`
@@ -147,18 +157,30 @@ Two independent namespaces on the same host — pick based on call type:
 import { io } from 'socket.io-client';
 
 const socket = io(`${CALL_SERVICE_URL}/calls`, {    // or /meetings
-  auth: { token: userJwt },                          // preferred
-  // or: extraHeaders: { Authorization: `Bearer ${userJwt}` }
+  auth: {
+    apiKey: SERVICE_API_KEY,       // your service's apiKey — never ship this to a browser/mobile client directly
+    secretKey: SERVICE_SECRET_KEY, // ditto — see the note below
+    userId: user.id,               // asserted plainly — your backend has already authenticated this user
+    displayName: user.name,        // optional
+    avatarUrl: user.avatarUrl,     // optional
+  },
   transports: ['polling', 'websocket'],               // must include polling first
 });
 ```
 
-`userJwt` is the **same JWT your existing backend already issues** — call-service verifies
-it with the shared `JWT_SECRET`/`JWT_ALGORITHM`, expecting `sub` (or `id`/`userId`) as the
-user id claim, and optionally `name`/`displayName`/`email` and `avatarUrl`/`picture`.
-call-service never asks your backend to validate the token itself; it validates it directly.
+call-service authenticates the **calling service**, not the end user directly — it verifies
+`(apiKey, secretKey)` against the shared `SERVICE_CREDENTIALS` and then trusts whatever
+`userId`/`displayName`/`avatarUrl` that already-authenticated service asserts for the
+connection. It never re-validates the end user's identity itself, because it has no account
+relationship with end users of its own — your backend is the source of truth for "is this
+really user X," the same way Twilio/Daily/Zoom-style video platform APIs work.
 
-If the token is invalid or missing, the server emits `errorEvent` (`{ message }`) and
+**Because `secretKey` must stay server-side, browsers/mobile apps should not open this
+socket directly with your service's raw credentials.** The usual pattern: your backend
+mints a short-lived, purpose-scoped credential for the client (or simply proxies the
+Socket.IO connection itself), rather than embedding the service secretKey in client code.
+
+If the credentials are invalid or missing, the server emits `errorEvent` (`{ message }`) and
 disconnects the socket immediately. **Do not treat the Socket.IO `connect` event alone as
 proof of authorization** — the disconnect can land a moment after `connect` fires. Listen
 for `disconnect`/`connect_error` too if you need to detect rejection deterministically
@@ -324,7 +346,7 @@ socket.emit('leaveRoom', { meetingId }, () => socket.close());
 If the socket just drops (network loss, tab close) without an explicit `leaveRoom`, the
 server gives it a `DISCONNECT_GRACE_PERIOD_MS` (10s default) reconnect window before
 finalizing the leave and broadcasting `userLeft` — reconnect with the same `joinRoom` call
-and the same user JWT within that window to resume seamlessly (your producers/consumers do
+and the same `userId` within that window to resume seamlessly (your producers/consumers do
 *not* survive — you'll need to re-produce, but your participant record and role do).
 
 ### 2.4 Screen share
@@ -384,8 +406,10 @@ silent no-op. Never trust a client-supplied role for anything; call-service does
 
 ## 3. Environment checklist before wiring this up against a real deployment
 
-From `.env.example` — the four with no default that will make the service refuse to boot:
-`JWT_SECRET` (must match your backend's), `INTERNAL_API_KEYS`, `MEDIASOUP_ANNOUNCED_IP`
+From `.env.example` — the vars that will make the service refuse to boot or silently
+misbehave if left at their placeholder defaults: `SERVICE_CREDENTIALS` (one
+`apiKey:secretKey` pair per integrating service — the service throws at startup if this is
+unset or empty; must match the credentials your backend/clients send), `MEDIASOUP_ANNOUNCED_IP`
 (the public IP media should be sent to — wrong value here is the single most common
 "signaling works, no audio/video" symptom), `TURN_HOST`. See the README's "coturn" section
 for how `TURN_SECRET` ties into the `iceServers` your clients receive automatically at join

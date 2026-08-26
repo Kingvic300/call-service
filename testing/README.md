@@ -7,12 +7,16 @@ configurable-scale synthetic load test, for the `call-service` in the parent dir
 
 This suite was built against a specific instruction set that assumed an "existing NestJS
 backend" with user register/login APIs. That backend doesn't exist in this repo —
-`call-service` is standalone (see `../README.md`) and only *verifies* JWTs, it doesn't
-issue them. Three concrete adaptations, each called out again at its point of use in code:
+`call-service` is standalone (see `../README.md`) and authenticates the *calling service*
+via a shared (apiKey, secretKey) pair, trusting whatever userId/displayName/avatarUrl that
+service asserts per connection — it has no user accounts of its own to register/login
+against. Three concrete adaptations, each called out again at its point of use in code:
 
-1. **User generation mints JWTs locally** (`users/generate-users.ts`) instead of calling
-   register/login endpoints — using the same `sub`/`name`/`avatarUrl` claims shape
-   `call-service` actually expects (`docs/INTEGRATION.md` §2.1).
+1. **User generation produces plain identity records locally** (`users/generate-users.ts`)
+   instead of calling register/login endpoints — this harness's shared `apiKey`/`secretKey`
+   (`testing/lib/config.ts`) covers auth, and each user's `id`/`name`/`avatarUrl` is passed
+   straight through as the asserted `userId`/`displayName`/`avatarUrl` (`docs/INTEGRATION.md`
+   §2.1).
 2. **Screen share uses a canvas-captured `MediaStream`**, not `getDisplayMedia()` — headless
    Chromium has no real display to capture. `call-service`'s screen-share logic keys off
    `appData.source === 'screen'`, not pixel content, so this exercises the real server-side
@@ -81,8 +85,9 @@ Not a substitute for testing on your real target hardware, but concrete and repr
   process's own CPU (`--pid`) *and* all 4 mediasoup worker processes' CPU directly via `ps`
   during a fresh run. Server main process peaked at **~30%** of one core; **every mediasoup
   worker read 0.0% CPU for the entire run.** The server was idle. The ~60-join ceiling is a
-  limitation of this load-test *tool* — one Node.js process synchronously JWT-signing and
-  juggling hundreds of concurrent sockets/timers/promises — not of call-service. A real
+  limitation of this load-test *tool* — one Node.js process synchronously
+  connecting/authenticating and juggling hundreds of concurrent sockets/timers/promises —
+  not of call-service. A real
   capacity ceiling test needs either multiple load-generator processes/machines or the
   Playwright-based real-browser scenarios (naturally paced by actual client startup cost).
   Room sharding may still matter at real production scale — this test just didn't prove it

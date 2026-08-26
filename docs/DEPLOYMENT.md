@@ -82,8 +82,9 @@ just more manual than a registry for repeat deploys.
    reverse-proxying `:4000` (WebSocket upgrade included) once you're ready — not included
    here since it depends on whether you're pointing a domain at the droplet yet.
 
-5. **`.env`**: copy `.env.example`, fill in the four vars with no default (`JWT_SECRET`,
-   `INTERNAL_API_KEYS`, `MEDIASOUP_ANNOUNCED_IP` — **the droplet's public IP**, `TURN_HOST`
+5. **`.env`**: copy `.env.example`, fill in the vars that must not be left at their
+   placeholder defaults (`SERVICE_CREDENTIALS` — one `apiKey:secretKey` pair per
+   integrating service, `MEDIASOUP_ANNOUNCED_IP` — **the droplet's public IP**, `TURN_HOST`
    — same IP), and sync `TURN_SECRET` into `docker/coturn/turnserver.conf`'s
    `static-auth-secret` (see that file's own comments).
 

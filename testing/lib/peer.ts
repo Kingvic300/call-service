@@ -45,7 +45,15 @@ export class PeerHandle {
   }
 
   async connect(namespace: '/calls' | '/meetings'): Promise<void> {
-    await this.call('connect', config.callServiceWsUrl, namespace, this.user.token);
+    await this.call(
+      'connect',
+      config.callServiceWsUrl,
+      namespace,
+      config.apiKey,
+      config.secretKey,
+      this.user.id,
+      this.user.name,
+    );
   }
 
   async joinRoom(meetingId: string) {

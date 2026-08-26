@@ -1,5 +1,13 @@
 import { plainToInstance, Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, Max, Min, validateSync } from 'class-validator';
+import {
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+  validateSync,
+} from 'class-validator';
 
 class EnvironmentVariables {
   @IsOptional()
@@ -17,15 +25,11 @@ class EnvironmentVariables {
   @IsIn(['fatal', 'error', 'warn', 'log', 'debug', 'verbose'])
   LOG_LEVEL = 'log';
 
+  // Comma-separated apiKey:secretKey pairs, one per integrating service
+  // (see AuthService) — used for both REST (X-Api-Key/X-Secret-Key headers)
+  // and Socket.IO (handshake auth) authentication.
   @IsString()
-  JWT_SECRET!: string;
-
-  @IsOptional()
-  @IsIn(['HS256', 'RS256'])
-  JWT_ALGORITHM = 'HS256';
-
-  @IsString()
-  INTERNAL_API_KEYS!: string;
+  SERVICE_CREDENTIALS!: string;
 
   @IsOptional()
   @IsString()
@@ -34,6 +38,13 @@ class EnvironmentVariables {
   @IsOptional()
   @IsString()
   REDIS_URL?: string;
+
+  // Optional — DB-backed API credentials (see credentials/credentials.service.ts).
+  // Without it, only the services listed in SERVICE_CREDENTIALS can
+  // authenticate; every other integrating-service feature works unaffected.
+  @IsOptional()
+  @IsString()
+  MONGO_URI?: string;
 
   // Multi-instance mode (only meaningful once REDIS_URL is set — see
   // src/redis/redis.module.ts and src/meeting/meeting-directory.service.ts).
@@ -148,7 +159,9 @@ class EnvironmentVariables {
   DISCONNECT_GRACE_PERIOD_MS = 10000;
 }
 
-export function validateEnv(config: Record<string, unknown>): EnvironmentVariables {
+export function validateEnv(
+  config: Record<string, unknown>,
+): EnvironmentVariables {
   const validated = plainToInstance(EnvironmentVariables, config, {
     enableImplicitConversion: true,
   });

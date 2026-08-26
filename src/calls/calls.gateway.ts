@@ -44,7 +44,9 @@ const NAMESPACE = '/calls';
   cors: { origin: process.env.CORS_ORIGIN ?? '*', credentials: true },
   transports: ['polling', 'websocket'],
 })
-export class CallsGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
+export class CallsGateway
+  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
+{
   @WebSocketServer()
   server!: Namespace;
 
@@ -62,13 +64,15 @@ export class CallsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
     this.logger.log(`${NAMESPACE} namespace initialized`);
   }
 
-  handleConnection(client: Socket): void {
+  async handleConnection(client: Socket): Promise<void> {
     try {
-      client.data.user = this.guard.authenticate(client);
+      client.data.user = await this.guard.authenticate(client);
     } catch (err) {
-      client.emit(ServerEvent.ERROR, {
-        message: err instanceof Error ? err.message : 'Unauthorized',
-      });
+      const message = err instanceof Error ? err.message : 'Unauthorized';
+      this.logger.warn(
+        `Rejected /calls connection ${client.id} from ${client.handshake.address}: ${message}`,
+      );
+      client.emit(ServerEvent.ERROR, { message });
       client.disconnect(true);
     }
   }
@@ -95,28 +99,46 @@ export class CallsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
   onLeaveRoom(@ConnectedSocket() client: Socket, @MessageBody() body: unknown) {
     return respond(() => {
       const dto = validateWsPayload(LeaveRoomDto, body);
-      const meeting = this.signaling.getMeetingForNamespace(dto.meetingId, NAMESPACE);
+      const meeting = this.signaling.getMeetingForNamespace(
+        dto.meetingId,
+        NAMESPACE,
+      );
       this.signaling.leaveRoom(client, meeting);
       return { left: true };
     });
   }
 
   @SubscribeMessage(ClientEvent.CREATE_TRANSPORT)
-  onCreateTransport(@ConnectedSocket() client: Socket, @MessageBody() body: unknown) {
+  onCreateTransport(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() body: unknown,
+  ) {
     return respond(() => {
       this.assertRate(client);
       const dto = validateWsPayload(CreateTransportDto, body);
-      const meeting = this.signaling.getMeetingForNamespace(dto.meetingId, NAMESPACE);
-      const direction = dto.direction === 'send' ? TransportDirection.SEND : TransportDirection.RECV;
+      const meeting = this.signaling.getMeetingForNamespace(
+        dto.meetingId,
+        NAMESPACE,
+      );
+      const direction =
+        dto.direction === 'send'
+          ? TransportDirection.SEND
+          : TransportDirection.RECV;
       return this.signaling.createTransport(client, meeting, direction);
     });
   }
 
   @SubscribeMessage(ClientEvent.CONNECT_TRANSPORT)
-  onConnectTransport(@ConnectedSocket() client: Socket, @MessageBody() body: unknown) {
+  onConnectTransport(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() body: unknown,
+  ) {
     return respond(() => {
       const dto = validateWsPayload(ConnectTransportDto, body);
-      const meeting = this.signaling.getMeetingForNamespace(dto.meetingId, NAMESPACE);
+      const meeting = this.signaling.getMeetingForNamespace(
+        dto.meetingId,
+        NAMESPACE,
+      );
       return this.signaling.connectTransport(
         client,
         meeting,
@@ -131,7 +153,10 @@ export class CallsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
     return respond(() => {
       this.assertRate(client);
       const dto = validateWsPayload(ProduceDto, body);
-      const meeting = this.signaling.getMeetingForNamespace(dto.meetingId, NAMESPACE);
+      const meeting = this.signaling.getMeetingForNamespace(
+        dto.meetingId,
+        NAMESPACE,
+      );
       return this.signaling.produce(
         client,
         meeting,
@@ -148,7 +173,10 @@ export class CallsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
     return respond(() => {
       this.assertRate(client);
       const dto = validateWsPayload(ConsumeDto, body);
-      const meeting = this.signaling.getMeetingForNamespace(dto.meetingId, NAMESPACE);
+      const meeting = this.signaling.getMeetingForNamespace(
+        dto.meetingId,
+        NAMESPACE,
+      );
       return this.signaling.consume(
         client,
         meeting,
@@ -160,64 +188,106 @@ export class CallsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
   }
 
   @SubscribeMessage(ClientEvent.RESUME_CONSUMER)
-  onResumeConsumer(@ConnectedSocket() client: Socket, @MessageBody() body: unknown) {
+  onResumeConsumer(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() body: unknown,
+  ) {
     return respond(() => {
       const dto = validateWsPayload(ConsumerIdDto, body);
-      const meeting = this.signaling.getMeetingForNamespace(dto.meetingId, NAMESPACE);
+      const meeting = this.signaling.getMeetingForNamespace(
+        dto.meetingId,
+        NAMESPACE,
+      );
       return this.signaling.resumeConsumer(client, meeting, dto.consumerId);
     });
   }
 
   @SubscribeMessage(ClientEvent.PAUSE_PRODUCER)
-  onPauseProducer(@ConnectedSocket() client: Socket, @MessageBody() body: unknown) {
+  onPauseProducer(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() body: unknown,
+  ) {
     return respond(() => {
       const dto = validateWsPayload(ProducerIdDto, body);
-      const meeting = this.signaling.getMeetingForNamespace(dto.meetingId, NAMESPACE);
+      const meeting = this.signaling.getMeetingForNamespace(
+        dto.meetingId,
+        NAMESPACE,
+      );
       return this.signaling.pauseProducer(client, meeting, dto.producerId);
     });
   }
 
   @SubscribeMessage(ClientEvent.RESUME_PRODUCER)
-  onResumeProducer(@ConnectedSocket() client: Socket, @MessageBody() body: unknown) {
+  onResumeProducer(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() body: unknown,
+  ) {
     return respond(() => {
       const dto = validateWsPayload(ProducerIdDto, body);
-      const meeting = this.signaling.getMeetingForNamespace(dto.meetingId, NAMESPACE);
+      const meeting = this.signaling.getMeetingForNamespace(
+        dto.meetingId,
+        NAMESPACE,
+      );
       return this.signaling.resumeProducer(client, meeting, dto.producerId);
     });
   }
 
   @SubscribeMessage(ClientEvent.CLOSE_PRODUCER)
-  onCloseProducer(@ConnectedSocket() client: Socket, @MessageBody() body: unknown) {
+  onCloseProducer(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() body: unknown,
+  ) {
     return respond(() => {
       const dto = validateWsPayload(ProducerIdDto, body);
-      const meeting = this.signaling.getMeetingForNamespace(dto.meetingId, NAMESPACE);
+      const meeting = this.signaling.getMeetingForNamespace(
+        dto.meetingId,
+        NAMESPACE,
+      );
       return this.signaling.closeProducer(client, meeting, dto.producerId);
     });
   }
 
   @SubscribeMessage(ClientEvent.RESTART_ICE)
-  onRestartIce(@ConnectedSocket() client: Socket, @MessageBody() body: unknown) {
+  onRestartIce(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() body: unknown,
+  ) {
     return respond(() => {
       const dto = validateWsPayload(TransportIdDto, body);
-      const meeting = this.signaling.getMeetingForNamespace(dto.meetingId, NAMESPACE);
+      const meeting = this.signaling.getMeetingForNamespace(
+        dto.meetingId,
+        NAMESPACE,
+      );
       return this.signaling.restartIce(client, meeting, dto.transportId);
     });
   }
 
   @SubscribeMessage(ClientEvent.START_SCREEN_SHARE)
-  onStartScreenShare(@ConnectedSocket() client: Socket, @MessageBody() body: unknown) {
+  onStartScreenShare(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() body: unknown,
+  ) {
     return respond(() => {
       const dto = validateWsPayload(MeetingIdOnlyDto, body);
-      const meeting = this.signaling.getMeetingForNamespace(dto.meetingId, NAMESPACE);
+      const meeting = this.signaling.getMeetingForNamespace(
+        dto.meetingId,
+        NAMESPACE,
+      );
       return this.signaling.startScreenShare(client, meeting);
     });
   }
 
   @SubscribeMessage(ClientEvent.STOP_SCREEN_SHARE)
-  onStopScreenShare(@ConnectedSocket() client: Socket, @MessageBody() body: unknown) {
+  onStopScreenShare(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() body: unknown,
+  ) {
     return respond(() => {
       const dto = validateWsPayload(MeetingIdOnlyDto, body);
-      const meeting = this.signaling.getMeetingForNamespace(dto.meetingId, NAMESPACE);
+      const meeting = this.signaling.getMeetingForNamespace(
+        dto.meetingId,
+        NAMESPACE,
+      );
       return this.signaling.stopScreenShare(client, meeting);
     });
   }
@@ -228,7 +298,10 @@ export class CallsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
       const dto = validateWsPayload(MeetingIdOnlyDto, body);
       // Either party can end a 1:1 call — no host hierarchy for two people.
       this.signaling.getMeetingForNamespace(dto.meetingId, NAMESPACE);
-      this.meetingService.end(dto.meetingId, `Ended by ${(client.data.user?.id as string) ?? 'participant'}`);
+      this.meetingService.end(
+        dto.meetingId,
+        `Ended by ${(client.data.user?.id as string) ?? 'participant'}`,
+      );
       return { ended: true };
     });
   }

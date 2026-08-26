@@ -1,5 +1,19 @@
-import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
-import { ApiOperation, ApiParam, ApiResponse, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+  ApiSecurity,
+  ApiTags,
+} from '@nestjs/swagger';
 import { ApiKeyGuard } from '../auth/api-key.guard';
 import { MeetingType, MeetingMode } from '../interfaces/meeting-type.enum';
 import { CreateMeetingDto } from './dto/create-meeting.dto';
@@ -12,6 +26,7 @@ import { MeetingService } from './meeting.service';
  */
 @ApiTags('meetings')
 @ApiSecurity('serviceApiKey')
+@ApiSecurity('serviceSecretKey')
 @Controller('meetings')
 @UseGuards(ApiKeyGuard)
 export class MeetingController {
@@ -19,7 +34,7 @@ export class MeetingController {
 
   @Post()
   @ApiOperation({ summary: 'Create a group meeting room' })
-  @ApiResponse({ status: 201, description: 'The created meeting\'s state.' })
+  @ApiResponse({ status: 201, description: "The created meeting's state." })
   create(@Body() dto: CreateMeetingDto) {
     const meeting = this.meetingService.create({
       id: dto.id,
@@ -35,7 +50,7 @@ export class MeetingController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get a meeting\'s current state' })
+  @ApiOperation({ summary: "Get a meeting's current state" })
   @ApiParam({ name: 'id', description: 'Meeting id' })
   get(@Param('id') id: string) {
     return this.meetingService.getOrThrow(id).toStateJSON();
@@ -49,7 +64,7 @@ export class MeetingController {
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: 'Remove a meeting\'s in-memory record' })
+  @ApiOperation({ summary: "Remove a meeting's in-memory record" })
   @ApiParam({ name: 'id', description: 'Meeting id' })
   remove(@Param('id') id: string) {
     this.meetingService.delete(id);

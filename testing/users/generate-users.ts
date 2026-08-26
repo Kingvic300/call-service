@@ -1,20 +1,19 @@
 /**
- * Generates 12 realistic test users and signs a call-service JWT for each.
+ * Generates 12 realistic test users.
  *
  * There is no real "existing NestJS backend" in this repo to register/login
- * against — call-service is standalone (see main README.md) and only
- * verifies JWTs, it doesn't issue them. So instead of calling register/login
- * endpoints that don't exist here, this mints tokens locally with the same
- * JWT_SECRET/claims shape call-service expects (sub/name/avatarUrl — see
- * docs/INTEGRATION.md §2.1). Swap this for real backend calls once one
- * exists in front of call-service.
+ * against — call-service is standalone (see main README.md) and no longer
+ * verifies per-user JWTs at all: it authenticates the *calling service* via
+ * a shared (apiKey, secretKey) pair (testing/lib/config.ts's
+ * apiKey/secretKey) and trusts whatever userId/displayName/avatarUrl that
+ * service asserts per connection (see docs/INTEGRATION.md §2.1). So there's
+ * nothing per-user left to mint here — just plain identity records the rest
+ * of the harness passes straight through as userId/displayName.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { faker } from '@faker-js/faker';
-import jwt from 'jsonwebtoken';
-import { config } from '../lib/config.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -25,7 +24,6 @@ export interface TestUser {
   password: string;
   avatarUrl: string;
   id: string; // uuid, used as the mediasoup peer identity
-  token: string;
 }
 
 const ROLES = [
@@ -53,12 +51,7 @@ export function generateUsers(): TestUser[] {
     const avatarUrl = faker.image.avatarGitHub();
     const password = faker.internet.password({ length: 16, memorable: false });
 
-    const token = jwt.sign({ sub: id, name, avatarUrl }, config.jwtSecret, {
-      algorithm: config.jwtAlgorithm,
-      expiresIn: '6h',
-    });
-
-    return { role, name, email, password, avatarUrl, id, token };
+    return { role, name, email, password, avatarUrl, id };
   });
 }
 

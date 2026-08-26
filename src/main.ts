@@ -15,8 +15,32 @@ async function bootstrap(): Promise<void> {
   const config = app.get(ConfigService);
   const logger = new Logger('Bootstrap');
 
-  app.use(helmet());
-  app.enableCors({ origin: config.get<string>('CORS_ORIGIN', '*'), credentials: true });
+  app.use(
+    helmet({
+      // Default CSP (script-src/style-src 'self' only) would block
+      // public/index.html's inline <script>/<style> — this is the one page
+      // this service serves as HTML, everything else here is a JSON/WS API
+      // that doesn't execute a CSP at all.
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          styleSrc: [
+            "'self'",
+            "'unsafe-inline'",
+            'https://fonts.googleapis.com',
+          ],
+          fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+          scriptSrc: ["'self'", "'unsafe-inline'"],
+          connectSrc: ["'self'"],
+          imgSrc: ["'self'", 'data:'],
+        },
+      },
+    }),
+  );
+  app.enableCors({
+    origin: config.get<string>('CORS_ORIGIN', '*'),
+    credentials: true,
+  });
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -34,7 +58,14 @@ async function bootstrap(): Promise<void> {
         'clients, which instead talk to this service over the /calls and /meetings Socket.IO namespaces.',
     )
     .setVersion('1.0')
-    .addApiKey({ type: 'apiKey', name: 'x-api-key', in: 'header' }, 'serviceApiKey')
+    .addApiKey(
+      { type: 'apiKey', name: 'x-api-key', in: 'header' },
+      'serviceApiKey',
+    )
+    .addApiKey(
+      { type: 'apiKey', name: 'x-secret-key', in: 'header' },
+      'serviceSecretKey',
+    )
     .build();
   const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('docs', app, swaggerDocument);
@@ -50,12 +81,16 @@ async function bootstrap(): Promise<void> {
     const redisIoAdapter = new RedisIoAdapter(app);
     await redisIoAdapter.connectToRedis(redis);
     app.useWebSocketAdapter(redisIoAdapter);
-    logger.log('Socket.IO Redis adapter attached — multi-instance signaling enabled');
+    logger.log(
+      'Socket.IO Redis adapter attached — multi-instance signaling enabled',
+    );
   }
 
   const port = config.get<number>('PORT', 4000);
   await app.listen(port, '0.0.0.0');
-  logger.log(`call-service listening on :${port} (/calls and /meetings namespaces)`);
+  logger.log(
+    `call-service listening on :${port} (/calls and /meetings namespaces)`,
+  );
   logger.log(`Swagger docs at :${port}/docs`);
 }
 

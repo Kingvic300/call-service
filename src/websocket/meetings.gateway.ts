@@ -37,6 +37,7 @@ import {
   ProducerIdDto,
   ReactionDto,
   SetFeatureDto,
+  SetPreferredLayersDto,
   TargetPeerDto,
   TransportIdDto,
 } from './dto/signaling.dto';
@@ -79,13 +80,15 @@ export class MeetingsGateway
     this.logger.log(`${NAMESPACE} namespace initialized`);
   }
 
-  handleConnection(client: Socket): void {
+  async handleConnection(client: Socket): Promise<void> {
     try {
-      client.data.user = this.guard.authenticate(client);
+      client.data.user = await this.guard.authenticate(client);
     } catch (err) {
-      client.emit(ServerEvent.ERROR, {
-        message: err instanceof Error ? err.message : 'Unauthorized',
-      });
+      const message = err instanceof Error ? err.message : 'Unauthorized';
+      this.logger.warn(
+        `Rejected /meetings connection ${client.id} from ${client.handshake.address}: ${message}`,
+      );
+      client.emit(ServerEvent.ERROR, { message });
       client.disconnect(true);
     }
   }
@@ -214,6 +217,27 @@ export class MeetingsGateway
         NAMESPACE,
       );
       return this.signaling.resumeConsumer(client, meeting, dto.consumerId);
+    });
+  }
+
+  @SubscribeMessage(ClientEvent.SET_PREFERRED_LAYERS)
+  onSetPreferredLayers(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() body: unknown,
+  ) {
+    return respond(() => {
+      const dto = validateWsPayload(SetPreferredLayersDto, body);
+      const meeting = this.signaling.getMeetingForNamespace(
+        dto.meetingId,
+        NAMESPACE,
+      );
+      return this.signaling.setPreferredLayers(
+        client,
+        meeting,
+        dto.consumerId,
+        dto.spatialLayer,
+        dto.temporalLayer,
+      );
     });
   }
 

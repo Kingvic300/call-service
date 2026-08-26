@@ -24,13 +24,12 @@
  *
  * Usage: node scripts/cross-instance-test.js
  */
-const jwt = require('jsonwebtoken');
 const { io } = require('socket.io-client');
 
 const BASE_URL_A = process.env.TEST_BASE_URL_A || 'http://localhost:4000';
 const BASE_URL_B = process.env.TEST_BASE_URL_B || 'http://localhost:4001';
-const JWT_SECRET = process.env.JWT_SECRET || 'change-me-to-a-long-random-secret';
-const API_KEY = (process.env.INTERNAL_API_KEYS || 'change-me-internal-key').split(',')[0].trim();
+const API_KEY = process.env.API_KEY || 'change-me-api-key';
+const SECRET_KEY = process.env.SECRET_KEY || 'change-me-secret-key';
 
 const results = [];
 function record(name, ok, detail) {
@@ -39,14 +38,10 @@ function record(name, ok, detail) {
   console.log(`[${icon}] ${name}${detail ? ' — ' + detail : ''}`);
 }
 
-function makeToken(userId, name) {
-  return jwt.sign({ sub: userId, name }, JWT_SECRET, { algorithm: 'HS256', expiresIn: '1h' });
-}
-
 async function httpJson(baseUrl, method, path, body) {
   const res = await fetch(`${baseUrl}${path}`, {
     method,
-    headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY },
+    headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY, 'X-Secret-Key': SECRET_KEY },
     body: body ? JSON.stringify(body) : undefined,
   });
   const text = await res.text();
@@ -60,10 +55,10 @@ async function httpJson(baseUrl, method, path, body) {
   return json;
 }
 
-function connectClient(baseUrl, namespace, token) {
+function connectClient(baseUrl, namespace, userId, displayName) {
   return new Promise((resolve, reject) => {
     const socket = io(`${baseUrl}${namespace}`, {
-      auth: { token },
+      auth: { apiKey: API_KEY, secretKey: SECRET_KEY, userId, displayName },
       transports: ['websocket'],
       reconnection: false,
       timeout: 5000,
@@ -101,8 +96,8 @@ function waitForEvent(socket, event, timeoutMs = 4000) {
 }
 
 async function main() {
-  const host = { id: 'cross-instance-host', token: makeToken('cross-instance-host', 'Host') };
-  const guest = { id: 'cross-instance-guest', token: makeToken('cross-instance-guest', 'Guest') };
+  const host = { id: 'cross-instance-host', name: 'Host' };
+  const guest = { id: 'cross-instance-guest', name: 'Guest' };
 
   // 1. Create on instance A, expect instanceUrl to point at A.
   const meeting = await httpJson(BASE_URL_A, 'POST', '/meetings', { hostId: host.id });
@@ -113,13 +108,13 @@ async function main() {
   );
 
   // 2. Host joins directly on instance A.
-  const hostSocket = await connectClient(BASE_URL_A, '/meetings', host.token);
+  const hostSocket = await connectClient(BASE_URL_A, '/meetings', host.id, host.name);
   const hostJoin = await ack(hostSocket, 'joinRoom', { meetingId: meeting.id });
   record('Host joinRoom on instance A succeeds', hostJoin.success, JSON.stringify(hostJoin.error || ''));
 
   // 3. Guest connects directly to instance B for the SAME meeting — must be
   // rejected with WRONG_INSTANCE + a redirect back to instance A.
-  const guestSocketOnB = await connectClient(BASE_URL_B, '/meetings', guest.token);
+  const guestSocketOnB = await connectClient(BASE_URL_B, '/meetings', guest.id, guest.name);
   const guestJoinOnB = await ack(guestSocketOnB, 'joinRoom', { meetingId: meeting.id });
   const redirectsToA =
     guestJoinOnB.success === false &&

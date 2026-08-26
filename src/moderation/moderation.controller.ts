@@ -17,6 +17,7 @@ const TRUSTED_ACTOR: ModerationActor = { role: 'trusted' };
 
 @ApiTags('moderation')
 @ApiSecurity('serviceApiKey')
+@ApiSecurity('serviceSecretKey')
 @ApiParam({ name: 'id', description: 'Meeting id' })
 @Controller('meetings/:id')
 @UseGuards(ApiKeyGuard)
@@ -30,7 +31,11 @@ export class ModerationController {
   @ApiOperation({ summary: 'Mute a participant' })
   async mute(@Param('id') id: string, @Body() dto: TargetParticipantDto) {
     const meeting = this.meetingService.getOrThrow(id);
-    await this.moderation.muteParticipant(meeting, TRUSTED_ACTOR, dto.targetUserId);
+    await this.moderation.muteParticipant(
+      meeting,
+      TRUSTED_ACTOR,
+      dto.targetUserId,
+    );
     return { muted: dto.targetUserId };
   }
 

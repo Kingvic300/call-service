@@ -1,0 +1,734 @@
+<title>Naelix</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+<style>
+  /* Deliberately single-theme (white) — see artifact-design guidance on
+     committing to one visual world; every color below is explicit so the
+     page holds regardless of the viewer's own theme. */
+  :root {
+    --bg: #ffffff;
+    --surface: #ffffff;
+    --surface-2: #f5f3ee;
+    --border: #ddd8cd;
+    --text: #17140f;
+    --text-dim: #6b6255;
+    --accent: #b9791f;
+    --accent-ink: #ffffff;
+    --accent-soft: #f1e2c8;
+    --success: #16a34a;
+    --danger: #dc2626;
+    --code-bg: #f5f3ee;
+    --shadow: 0 1px 2px rgba(23, 20, 15, 0.06), 0 8px 24px rgba(23, 20, 15, 0.06);
+    --font-display: "Archivo", "Segoe UI", system-ui, sans-serif;
+    --font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --font-mono: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
+  }
+
+  a { color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 28px; }
+
+  h1, h2, h3 { font-family: var(--font-display); font-weight: 700; text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+
+  code, .mono { font-family: var(--font-mono); }
+
+  /* ---------- Nav ---------- */
+  header.nav {
+    position: sticky; top: 0; z-index: 40;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 28px;
+    background: color-mix(in srgb, var(--bg) 82%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav-inner { max-width: 1120px; margin: 0 auto; width: 100%; display: flex; align-items: center; justify-content: space-between; }
+  .wordmark { display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-weight: 800; font-size: 20px; letter-spacing: -0.02em; text-decoration: none; }
+  .wordmark .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+  nav.links { display: flex; gap: 28px; align-items: center; }
+  nav.links a { text-decoration: none; color: var(--text-dim); font-size: 14.5px; font-weight: 500; transition: color 0.15s ease; }
+  nav.links a:hover { color: var(--text); }
+  .nav-cta {
+    font-family: var(--font-body); font-weight: 600; font-size: 14px;
+    padding: 9px 16px; border-radius: 8px; text-decoration: none;
+    background: var(--accent); color: var(--accent-ink);
+    transition: filter 0.15s ease, transform 0.15s ease;
+  }
+  .nav-cta:hover { filter: brightness(1.08); transform: translateY(-1px); }
+  .nav-mobile-hide { display: flex; }
+  @media (max-width: 720px) { .nav-mobile-hide nav.links { display: none; } }
+
+  /* ---------- Hero ---------- */
+  .hero { position: relative; padding: 96px 28px 72px; overflow: hidden; }
+  .hero-inner { max-width: 1120px; margin: 0 auto; position: relative; z-index: 2; }
+  #wave { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; opacity: 0.55; pointer-events: none; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--font-mono); font-size: 12.5px; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--accent); background: var(--accent-soft);
+    padding: 6px 12px; border-radius: 999px; margin-bottom: 22px;
+  }
+  .eyebrow .pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--success); animation: blip 1.8s ease-in-out infinite; }
+  @keyframes blip { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+
+  .hero h1 { font-size: clamp(38px, 6vw, 64px); line-height: 1.06; max-width: 15ch; }
+  .hero h1 .accent-word { color: var(--accent); }
+  .hero p.lead { font-size: 18px; color: var(--text-dim); max-width: 46ch; margin: 22px 0 34px; }
+
+  .cta-row { display: flex; gap: 14px; flex-wrap: wrap; }
+  .btn {
+    font-family: var(--font-body); font-weight: 600; font-size: 15px;
+    padding: 13px 22px; border-radius: 9px; text-decoration: none;
+    display: inline-flex; align-items: center; gap: 8px;
+    transition: filter 0.15s ease, transform 0.15s ease, background 0.15s ease;
+    border: 1px solid transparent; cursor: pointer;
+  }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); }
+  .btn-primary:hover { filter: brightness(1.08); transform: translateY(-1px); }
+  .btn-ghost { background: transparent; color: var(--text); border-color: var(--border); }
+  .btn-ghost:hover { background: var(--surface-2); }
+
+  .hero-meta { display: flex; gap: 32px; margin-top: 56px; flex-wrap: wrap; }
+  .hero-meta .stat { font-family: var(--font-mono); }
+  .hero-meta .stat .num { font-size: 26px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+  .hero-meta .stat .label { font-size: 12.5px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px; }
+
+  /* ---------- Section shell ---------- */
+  section { padding: 88px 0; border-top: 1px solid var(--border); }
+  .section-head { max-width: 62ch; margin-bottom: 48px; }
+  .section-head .kicker { font-family: var(--font-mono); font-size: 12.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); display: block; margin-bottom: 12px; }
+  .section-head h2 { font-size: clamp(26px, 3.4vw, 36px); }
+  .section-head p { color: var(--text-dim); font-size: 16px; margin-top: 14px; max-width: 58ch; }
+
+  /* ---------- Features ---------- */
+  .feature-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+  @media (max-width: 900px) { .feature-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 560px) { .feature-grid { grid-template-columns: 1fr; } }
+  .feature-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    padding: 26px 22px; box-shadow: var(--shadow);
+    transition: transform 0.18s ease, border-color 0.18s ease;
+  }
+  .feature-card:hover { transform: translateY(-3px); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+  .feature-card .icon {
+    width: 38px; height: 38px; border-radius: 10px; background: var(--accent-soft);
+    display: flex; align-items: center; justify-content: center; color: var(--accent); margin-bottom: 16px;
+  }
+  .feature-card h3 { font-size: 16.5px; margin-bottom: 8px; }
+  .feature-card p { font-size: 14.5px; color: var(--text-dim); margin: 0; }
+
+  /* ---------- Key generator ---------- */
+  .console {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+    box-shadow: var(--shadow); overflow: hidden;
+  }
+  .console-bar {
+    display: flex; align-items: center; gap: 8px; padding: 12px 18px;
+    border-bottom: 1px solid var(--border); background: var(--surface-2);
+  }
+  .console-bar .led { width: 9px; height: 9px; border-radius: 50%; }
+  .console-bar .led.r { background: #ef5a4c; }
+  .console-bar .led.y { background: #f1b73c; }
+  .console-bar .led.g { background: #55c46b; }
+  .console-bar .title { margin-left: 8px; font-family: var(--font-mono); font-size: 12.5px; color: var(--text-dim); }
+  .console-body { padding: 28px; }
+
+  .keygen-row { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-bottom: 20px; }
+  .btn-generate {
+    background: var(--accent); color: var(--accent-ink); border: none;
+    font-family: var(--font-body); font-weight: 600; font-size: 14.5px;
+    padding: 12px 20px; border-radius: 8px; cursor: pointer;
+    transition: filter 0.15s ease, transform 0.15s ease;
+  }
+  .btn-generate:hover { filter: brightness(1.08); transform: translateY(-1px); }
+  .btn-generate:active { transform: translateY(0); }
+  .keygen-hint { font-size: 13.5px; color: var(--text-dim); }
+
+  .cred-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
+  .cred-row {
+    display: grid; grid-template-columns: 110px 1fr auto; align-items: center; gap: 12px;
+    background: var(--code-bg); border: 1px solid var(--border); border-radius: 9px;
+    padding: 12px 14px;
+  }
+  @media (max-width: 620px) { .cred-row { grid-template-columns: 1fr; } .cred-row .copy-btn { justify-self: start; } }
+  .cred-row .cred-label { font-family: var(--font-mono); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); }
+  .cred-row .cred-value { font-family: var(--font-mono); font-size: 14px; overflow-wrap: anywhere; color: var(--text); }
+  .cred-row .cred-value.placeholder { color: var(--text-dim); }
+  .copy-btn {
+    font-family: var(--font-body); font-size: 12.5px; font-weight: 600;
+    background: transparent; border: 1px solid var(--border); color: var(--text-dim);
+    padding: 7px 12px; border-radius: 7px; cursor: pointer; transition: all 0.15s ease;
+    white-space: nowrap;
+  }
+  .copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .copy-btn.copied { border-color: var(--success); color: var(--success); }
+
+  .demo-note { display: flex; gap: 10px; align-items: flex-start; margin-top: 18px; padding: 12px 14px; background: var(--surface-2); border-radius: 9px; font-size: 13px; color: var(--text-dim); }
+  .demo-note svg { flex-shrink: 0; margin-top: 1px; color: var(--accent); }
+
+  /* ---------- Auth docs ---------- */
+  .auth-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start; }
+  @media (max-width: 860px) { .auth-grid { grid-template-columns: 1fr; } }
+  .auth-copy p { color: var(--text-dim); font-size: 15px; }
+  .auth-copy ul { padding-left: 20px; color: var(--text-dim); font-size: 15px; }
+  .auth-copy li { margin-bottom: 8px; }
+  .auth-copy strong { color: var(--text); }
+
+  pre.codeblock {
+    background: var(--code-bg); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px 22px; overflow-x: auto; font-family: var(--font-mono); font-size: 13.5px; line-height: 1.7;
+    margin: 0;
+  }
+  pre.codeblock .c-key { color: var(--accent); }
+  pre.codeblock .c-str { color: #1a7a3c; }
+  pre.codeblock .c-comment { color: var(--text-dim); font-style: italic; }
+  pre.codeblock .c-method { color: #1d6fd6; }
+
+  /* ---------- API reference ---------- */
+  .ref-group { margin-bottom: 36px; }
+  .ref-group-title {
+    font-size: 15px; font-weight: 700; margin-bottom: 12px;
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  .ref-auth-badge {
+    font-family: var(--font-mono); font-size: 11px; font-weight: 500;
+    color: var(--accent); background: var(--accent-soft);
+    padding: 3px 9px; border-radius: 999px; letter-spacing: 0.02em;
+  }
+  .ref-auth-badge.public { color: var(--success); background: color-mix(in srgb, var(--success) 14%, white); }
+  .ref-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .ref-table td { padding: 11px 14px; border-bottom: 1px solid var(--border); vertical-align: top; color: var(--text-dim); }
+  .ref-table tr:last-child td { border-bottom: none; }
+  .ref-method {
+    font-family: var(--font-mono); font-weight: 700; font-size: 12px;
+    width: 64px; white-space: nowrap;
+  }
+  .ref-method.get { color: #1d6fd6; }
+  .ref-method.post { color: #1a7a3c; }
+  .ref-method.del { color: var(--danger); }
+  .ref-path { font-family: var(--font-mono); font-size: 13px; color: var(--text); white-space: nowrap; }
+  .ref-event-list {
+    font-family: var(--font-mono); font-size: 13px; line-height: 2; color: var(--text-dim);
+    background: var(--code-bg); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px;
+  }
+
+  /* ---------- Code samples ---------- */
+  .tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 0; border-bottom: 1px solid var(--border); padding: 0 6px; }
+  .tab-btn {
+    font-family: var(--font-mono); font-size: 13px; font-weight: 500;
+    background: transparent; border: none; color: var(--text-dim);
+    padding: 13px 16px; cursor: pointer; position: relative; transition: color 0.15s ease;
+  }
+  .tab-btn:hover { color: var(--text); }
+  .tab-btn.active { color: var(--accent); }
+  .tab-btn.active::after { content: ""; position: absolute; left: 10px; right: 10px; bottom: -1px; height: 2px; background: var(--accent); border-radius: 2px; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+  .code-wrap { position: relative; }
+  .code-copy {
+    position: absolute; top: 14px; right: 14px;
+    font-family: var(--font-body); font-size: 12px; font-weight: 600;
+    background: var(--surface-2); border: 1px solid var(--border); color: var(--text-dim);
+    padding: 6px 10px; border-radius: 6px; cursor: pointer; transition: all 0.15s ease;
+  }
+  .code-copy:hover { color: var(--accent); border-color: var(--accent); }
+
+  /* ---------- Footer ---------- */
+  footer { border-top: 1px solid var(--border); padding: 56px 0 36px; }
+  .footer-grid { display: grid; grid-template-columns: 1.4fr repeat(4, 1fr); gap: 32px; }
+  @media (max-width: 780px) { .footer-grid { grid-template-columns: repeat(2, 1fr); } }
+  .footer-brand .wordmark { margin-bottom: 12px; }
+  .footer-brand p { color: var(--text-dim); font-size: 14px; max-width: 32ch; }
+  .footer-col h4 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); margin-bottom: 14px; font-family: var(--font-mono); font-weight: 500; }
+  .footer-col a { display: block; text-decoration: none; color: var(--text); font-size: 14.5px; margin-bottom: 10px; opacity: 0.85; transition: opacity 0.15s ease, color 0.15s ease; }
+  .footer-col a:hover { opacity: 1; color: var(--accent); }
+  .footer-bottom { margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; font-size: 13px; color: var(--text-dim); }
+</style>
+
+<header class="nav">
+  <div class="nav-inner nav-mobile-hide">
+    <a class="wordmark" href="#top"><span class="dot"></span>Naelix</a>
+    <nav class="links">
+      <a href="#features">Features</a>
+      <a href="#keys">Get API Key</a>
+      <a href="#auth">Docs</a>
+      <a href="#reference">API reference</a>
+      <a href="#samples">Code samples</a>
+    </nav>
+    <a class="nav-cta" href="#keys">Get API Key</a>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero">
+    <canvas id="wave" aria-hidden="true"></canvas>
+    <div class="hero-inner">
+      <span class="eyebrow"><span class="pulse"></span>Live on api.naelix.com</span>
+      <h1>Real-time calling,<br /><span class="accent-word">wired straight in.</span></h1>
+      <p class="lead">Naelix is a video and voice calling API built on a WebRTC SFU. Drop in 1:1 calls, group meetings, and screen share without standing up mediasoup, TURN, or signaling infrastructure yourself.</p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="#keys">Get API Key</a>
+        <a class="btn btn-ghost" href="#auth">View Docs</a>
+      </div>
+      <div class="hero-meta">
+        <div class="stat"><div class="num">&lt;300ms</div><div class="label">Median connect time</div></div>
+        <div class="stat"><div class="num">1:1 &amp; group</div><div class="label">Same API, either shape</div></div>
+        <div class="stat"><div class="num">2 headers</div><div class="label">To authenticate</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="features">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="kicker">Why Naelix</span>
+        <h2>Built for teams shipping calling as a feature, not a product.</h2>
+        <p>You want your users talking to each other. You don't want to be the one debugging ICE candidates at 2am.</p>
+      </div>
+      <div class="feature-grid">
+        <div class="feature-card">
+          <div class="icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
+          </div>
+          <h3>Sub-second connect</h3>
+          <p>Routed through a mediasoup SFU with a TURN fallback that's tried in parallel, not after — calls join fast even on restrictive networks.</p>
+        </div>
+        <div class="feature-card">
+          <div class="icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z"></path><path d="M2 12h20M12 2a15 15 0 0 1 4 10 15 15 0 0 1-4 10 15 15 0 0 1-4-10 15 15 0 0 1 4-10Z"></path></svg>
+          </div>
+          <h3>1:1 to 200-person rooms</h3>
+          <p>The same signaling contract scales from a direct call to a large standup — simulcast and active-speaker detection built in.</p>
+        </div>
+        <div class="feature-card">
+          <div class="icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="14" rx="2"></rect><path d="M8 21h8M12 17v4"></path></svg>
+          </div>
+          <h3>Screen share, native</h3>
+          <p>One API call swaps a video producer for a screen-share track — no separate room, no reconnect, no second bill.</p>
+        </div>
+        <div class="feature-card">
+          <div class="icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7 9 18l-5-5"></path></svg>
+          </div>
+          <h3>Your users, your identity</h3>
+          <p>Naelix authenticates your service, not your end users — pass whoever's calling in the request, no separate account system to sync.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="keys">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="kicker">Try it now</span>
+        <h2>Generate a key pair.</h2>
+        <p>Every integration authenticates with an API key and a secret key — no per-user tokens to mint or rotate on your side.</p>
+      </div>
+      <div class="console">
+        <div class="console-bar">
+          <span class="led r"></span><span class="led y"></span><span class="led g"></span>
+          <span class="title">naelix — credentials</span>
+        </div>
+        <div class="console-body">
+          <div class="keygen-row">
+            <button class="btn-generate" id="genBtn" type="button">Generate API Key</button>
+            <span class="keygen-hint" id="keygenHint">Real, working credentials — limited to 3 per day per visitor.</span>
+          </div>
+          <div class="cred-grid">
+            <div class="cred-row">
+              <span class="cred-label">API Key</span>
+              <span class="cred-value placeholder" id="apiKeyVal">nlx_key_••••••••••••••••••••</span>
+              <button class="copy-btn" id="copyApiKey" type="button">Copy</button>
+            </div>
+            <div class="cred-row">
+              <span class="cred-label">Secret Key</span>
+              <span class="cred-value placeholder" id="secretKeyVal">nlx_secret_••••••••••••••••••••</span>
+              <button class="copy-btn" id="copySecretKey" type="button">Copy</button>
+            </div>
+          </div>
+          <div class="demo-note">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4M12 8h.01"></path></svg>
+            <span>The secret key is shown once, right here — store it now. This is a trial credential meant for testing the API, not production traffic.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="auth">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="kicker">Authentication</span>
+        <h2>Two headers, no user tokens.</h2>
+      </div>
+      <div class="auth-grid">
+        <div class="auth-copy">
+          <p>Naelix authenticates the <strong>service</strong> calling it, not the end user placing the call. Send your API key and secret key on every request — Naelix trusts the user identity you pass alongside them, the same way you already trust your own session layer.</p>
+          <ul>
+            <li><strong>X-Api-Key</strong> — identifies your integration.</li>
+            <li><strong>X-Secret-Key</strong> — proves it's really you. Never expose this in a browser or mobile app.</li>
+          </ul>
+          <p>Base URL for every request — this same origin:</p>
+          <pre class="codeblock mono" id="baseUrlBlock">https://api.naelix.com</pre>
+        </div>
+        <div>
+          <pre class="codeblock"><span class="c-comment"># Create a 1:1 call room</span>
+<span class="c-method">POST</span> /calls
+<span class="c-key">X-Api-Key:</span> <span class="c-str">nlx_key_7f2a9c1e4b8d3f60</span>
+<span class="c-key">X-Secret-Key:</span> <span class="c-str">nlx_secret_9b1c...e02f</span>
+<span class="c-key">Content-Type:</span> application/json
+
+{
+  <span class="c-key">"callerId"</span>: <span class="c-str">"user_482"</span>,
+  <span class="c-key">"mode"</span>: <span class="c-str">"video"</span>
+}
+
+<span class="c-comment"># 201 Created</span>
+{
+  <span class="c-key">"id"</span>: <span class="c-str">"a1b2c3d4-..."</span>,
+  <span class="c-key">"type"</span>: <span class="c-str">"one_to_one"</span>,
+  <span class="c-key">"mode"</span>: <span class="c-str">"video"</span>,
+  <span class="c-key">"locked"</span>: <span class="c-key">false</span>,
+  <span class="c-key">"participantCount"</span>: <span class="c-key">0</span>
+}</pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="reference">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="kicker">API reference</span>
+        <h2>Every endpoint, grouped by resource.</h2>
+        <p>The same surface <a href="/docs" style="color:var(--accent)">Swagger</a> documents interactively — this is the quick-scan version. <code class="mono">meetings</code> covers group calls, <code class="mono">calls</code> covers 1:1 — see the Endpoint surface note above for why they're separate.</p>
+      </div>
+
+      <div class="ref-group">
+        <h3 class="ref-group-title">Calls <span class="ref-auth-badge">apiKey + secretKey</span></h3>
+        <table class="ref-table">
+          <tbody>
+            <tr><td class="ref-method post">POST</td><td class="ref-path">/calls</td><td>Create a 1:1 call room. Body: <code class="mono">callerId</code> (required), <code class="mono">id</code>, <code class="mono">mode</code> (<code class="mono">video</code> | <code class="mono">audio_only</code>).</td></tr>
+            <tr><td class="ref-method get">GET</td><td class="ref-path">/calls/:id</td><td>Get a call's current state.</td></tr>
+            <tr><td class="ref-method post">POST</td><td class="ref-path">/calls/:id/end</td><td>End a call for both participants.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="ref-group">
+        <h3 class="ref-group-title">Meetings <span class="ref-auth-badge">apiKey + secretKey</span></h3>
+        <table class="ref-table">
+          <tbody>
+            <tr><td class="ref-method post">POST</td><td class="ref-path">/meetings</td><td>Create a group meeting room. Body: <code class="mono">hostId</code> (required), <code class="mono">id</code>, <code class="mono">mode</code>, <code class="mono">waitingRoomEnabled</code>, <code class="mono">chatEnabled</code>, <code class="mono">reactionsEnabled</code>, <code class="mono">screenShareEnabled</code>.</td></tr>
+            <tr><td class="ref-method get">GET</td><td class="ref-path">/meetings/:id</td><td>Get a meeting's current state.</td></tr>
+            <tr><td class="ref-method post">POST</td><td class="ref-path">/meetings/:id/end</td><td>End a meeting for every participant.</td></tr>
+            <tr><td class="ref-method del">DELETE</td><td class="ref-path">/meetings/:id</td><td>Remove a meeting's in-memory record.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="ref-group">
+        <h3 class="ref-group-title">Moderation <span class="ref-auth-badge">apiKey + secretKey</span></h3>
+        <table class="ref-table">
+          <tbody>
+            <tr><td class="ref-method post">POST</td><td class="ref-path">/meetings/:id/mute</td><td>Mute a participant.</td></tr>
+            <tr><td class="ref-method post">POST</td><td class="ref-path">/meetings/:id/kick</td><td>Remove a participant (alias of <code class="mono">remove</code>).</td></tr>
+            <tr><td class="ref-method post">POST</td><td class="ref-path">/meetings/:id/remove</td><td>Remove a participant from the meeting.</td></tr>
+            <tr><td class="ref-method post">POST</td><td class="ref-path">/meetings/:id/promote</td><td>Promote a participant to co-host.</td></tr>
+            <tr><td class="ref-method post">POST</td><td class="ref-path">/meetings/:id/demote</td><td>Demote a co-host back to participant.</td></tr>
+            <tr><td class="ref-method post">POST</td><td class="ref-path">/meetings/:id/lock</td><td>Lock the meeting against new joins.</td></tr>
+            <tr><td class="ref-method post">POST</td><td class="ref-path">/meetings/:id/unlock</td><td>Unlock the meeting.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="ref-group">
+        <h3 class="ref-group-title">Participants <span class="ref-auth-badge">apiKey + secretKey</span></h3>
+        <table class="ref-table">
+          <tbody>
+            <tr><td class="ref-method get">GET</td><td class="ref-path">/participants/:meetingId</td><td>List a meeting's current participants.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="ref-group">
+        <h3 class="ref-group-title">Developer &amp; ops <span class="ref-auth-badge public">public, no auth</span></h3>
+        <table class="ref-table">
+          <tbody>
+            <tr><td class="ref-method post">POST</td><td class="ref-path">/developer/api-keys</td><td>Generate a trial (apiKey, secretKey) pair — what the button above calls. Rate-limited per visitor.</td></tr>
+            <tr><td class="ref-method get">GET</td><td class="ref-path">/health</td><td>Service health, mediasoup worker stats, meeting counts.</td></tr>
+            <tr><td class="ref-method get">GET</td><td class="ref-path">/metrics</td><td>Prometheus metrics (plain-text exposition format).</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="section-head" style="margin-top:56px;">
+        <span class="kicker">Real-time signaling</span>
+        <h2>Socket.IO, not REST, for the call itself.</h2>
+        <p>REST creates and manages rooms; the actual join/produce/consume flow runs over Socket.IO on two namespaces — <code class="mono">/calls</code> (1:1, no moderation) and <code class="mono">/meetings</code> (group, full moderation surface). Connect with <code class="mono">auth: {'{'} apiKey, secretKey, userId, displayName {'}'}</code>, then emit <code class="mono">joinRoom</code> with an ack callback to get back <code class="mono">rtpCapabilities</code> and start producing/consuming media.</p>
+      </div>
+      <div class="ref-group">
+        <h3 class="ref-group-title">Client → server (ack-based request/response)</h3>
+        <p class="ref-event-list">joinRoom · leaveRoom · createTransport · connectTransport · produce · consume · pauseProducer · resumeProducer · closeProducer · resumeConsumer · setPreferredLayers · restartIce · startScreenShare · stopScreenShare · raiseHand · lowerHand · lowerParticipantHand · inviteToSpeak · reaction · chatMessage · mute · requestUnmute · kick · lockMeeting · unlockMeeting · endMeeting · promoteModerator · demoteModerator · admitWaitingParticipant · rejectWaitingParticipant · heartbeat</p>
+      </div>
+      <div class="ref-group">
+        <h3 class="ref-group-title">Server → client (broadcast)</h3>
+        <p class="ref-event-list">userJoined · userLeft · newProducer · producerClosed · videoEnabled · videoDisabled · audioMuted · audioUnmuted · unmuteRequested · handRaised · handLowered · reaction · chatMessage · screenShareStarted · screenShareStopped · participantRemoved · participantRoleChanged · meetingLocked · meetingUnlocked · meetingEnded · meetingStateUpdated · waitingRoomJoined · waitingRoomParticipant · waitingRoomRejected · admitted · activeSpeakerChanged · forceMuted · errorEvent · heartbeatAck</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="samples">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="kicker">Integrate</span>
+        <h2>Call it from wherever your backend lives.</h2>
+        <p>Every sample creates a call and prints the returned <code class="mono">id</code>.</p>
+      </div>
+      <div class="console">
+        <div class="tabs" id="tabs" role="tablist"></div>
+        <div id="panels"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <a class="wordmark" href="#top"><span class="dot"></span>Naelix</a>
+        <p>Real-time video and voice calling, built on an open WebRTC SFU. One API for 1:1 calls and group rooms.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Product</h4>
+        <a href="#features">Features</a>
+        <a href="#keys">API Keys</a>
+        <a href="#samples">Code samples</a>
+      </div>
+      <div class="footer-col">
+        <h4>Docs</h4>
+        <a href="#auth">Authentication</a>
+        <a href="#reference">API reference</a>
+        <a href="/docs">Swagger / OpenAPI</a>
+      </div>
+      <div class="footer-col">
+        <h4>Company</h4>
+        <a href="#">GitHub</a>
+        <a href="#">Pricing</a>
+        <a href="#">Contact</a>
+      </div>
+      <div class="footer-col">
+        <h4>Status</h4>
+        <a href="#">Uptime</a>
+        <a href="#">Security</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>&copy; 2026 Naelix. All systems normal.</span>
+      <span class="mono">api.naelix.com/v1</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // ---------- Hero waveform (Canvas, ambient — represents an active call) ----------
+  (function () {
+    var canvas = document.getElementById('wave');
+    var ctx = canvas.getContext('2d');
+    var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var w, h, t = 0;
+
+    function resize() {
+      var rect = canvas.parentElement.getBoundingClientRect();
+      w = rect.width; h = rect.height;
+      canvas.width = w * dpr; canvas.height = h * dpr;
+      canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    var ACCENT_RGB = '185,121,31'; // matches --accent (single light theme)
+
+    function draw() {
+      ctx.clearRect(0, 0, w, h);
+      var rgb = ACCENT_RGB;
+      var lines = 3;
+      for (var l = 0; l < lines; l++) {
+        ctx.beginPath();
+        var amp = (18 + l * 10) * (h / 480);
+        var freq = 0.006 - l * 0.001;
+        var speed = 0.4 + l * 0.15;
+        var yBase = h * (0.35 + l * 0.16);
+        var alpha = 0.5 - l * 0.14;
+        for (var x = 0; x <= w; x += 4) {
+          var y = yBase + Math.sin(x * freq + t * speed) * amp * Math.sin(x / w * Math.PI);
+          if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.strokeStyle = 'rgba(' + rgb + ',' + alpha + ')';
+        ctx.lineWidth = 1.6;
+        ctx.stroke();
+      }
+      t += reduced ? 0 : 0.02;
+      requestAnimationFrame(draw);
+    }
+    draw();
+  })();
+
+  // ---------- Base URL: this page IS the API's own origin ----------
+  (function () {
+    var el = document.getElementById('baseUrlBlock');
+    if (el) el.textContent = window.location.origin;
+  })();
+
+  // ---------- API key generator ----------
+  // Calls this same origin's POST /developer/api-keys — a real, rate-limited
+  // endpoint (see src/developer/developer.controller.ts), not a client-side
+  // simulation. Same-origin means no CORS/CSP hurdles, unlike a page that
+  // isn't served by call-service itself.
+  (function () {
+    var apiKeyEl = document.getElementById('apiKeyVal');
+    var secretKeyEl = document.getElementById('secretKeyVal');
+    var genBtn = document.getElementById('genBtn');
+    var hintEl = document.getElementById('keygenHint');
+    var defaultHint = hintEl.textContent;
+
+    genBtn.addEventListener('click', function () {
+      genBtn.disabled = true;
+      genBtn.textContent = 'Generating…';
+      hintEl.textContent = defaultHint;
+      hintEl.style.color = '';
+
+      fetch('/developer/api-keys', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+        .then(function (res) {
+          return res.json().then(function (body) {
+            if (!res.ok) throw new Error(body.message || 'Request failed');
+            return body;
+          });
+        })
+        .then(function (body) {
+          apiKeyEl.textContent = body.apiKey;
+          secretKeyEl.textContent = body.secretKey;
+          apiKeyEl.classList.remove('placeholder');
+          secretKeyEl.classList.remove('placeholder');
+        })
+        .catch(function (err) {
+          hintEl.textContent = Array.isArray(err.message) ? err.message.join(' ') : String(err.message || err);
+          hintEl.style.color = 'var(--danger)';
+        })
+        .finally(function () {
+          genBtn.disabled = false;
+          genBtn.textContent = 'Generate API Key';
+        });
+    });
+
+    function wireCopy(btnId, sourceEl) {
+      var btn = document.getElementById(btnId);
+      btn.addEventListener('click', function () {
+        var text = sourceEl.textContent;
+        navigator.clipboard.writeText(text).then(function () {
+          var original = btn.textContent;
+          btn.textContent = 'Copied';
+          btn.classList.add('copied');
+          setTimeout(function () { btn.textContent = original; btn.classList.remove('copied'); }, 1400);
+        }).catch(function () {});
+      });
+    }
+    wireCopy('copyApiKey', apiKeyEl);
+    wireCopy('copySecretKey', secretKeyEl);
+  })();
+
+  // ---------- Code sample tabs ----------
+  (function () {
+    var samples = [
+      {
+        lang: 'cURL',
+        code: '<span class="c-comment"># Create a call room</span>\ncurl -X POST https://api.naelix.com/calls \\\n  -H <span class="c-str">"X-Api-Key: nlx_key_7f2a9c1e4b8d3f60"</span> \\\n  -H <span class="c-str">"X-Secret-Key: nlx_secret_9b1c...e02f"</span> \\\n  -H <span class="c-str">"Content-Type: application/json"</span> \\\n  -d <span class="c-str">\'{"callerId": "user_482", "mode": "video"}\'</span>'
+      },
+      {
+        lang: 'Python',
+        code: '<span class="c-key">import</span> requests\n\nresp = requests.post(\n    <span class="c-str">"https://api.naelix.com/calls"</span>,\n    headers={\n        <span class="c-str">"X-Api-Key"</span>: <span class="c-str">"nlx_key_7f2a9c1e4b8d3f60"</span>,\n        <span class="c-str">"X-Secret-Key"</span>: <span class="c-str">"nlx_secret_9b1c...e02f"</span>,\n    },\n    json={<span class="c-str">"callerId"</span>: <span class="c-str">"user_482"</span>, <span class="c-str">"mode"</span>: <span class="c-str">"video"</span>},\n)\n\nprint(resp.json()[<span class="c-str">"id"</span>])'
+      },
+      {
+        lang: 'JavaScript',
+        code: '<span class="c-key">const</span> res = <span class="c-key">await</span> fetch(<span class="c-str">"https://api.naelix.com/calls"</span>, {\n  method: <span class="c-str">"POST"</span>,\n  headers: {\n    <span class="c-str">"X-Api-Key"</span>: <span class="c-str">"nlx_key_7f2a9c1e4b8d3f60"</span>,\n    <span class="c-str">"X-Secret-Key"</span>: <span class="c-str">"nlx_secret_9b1c...e02f"</span>,\n    <span class="c-str">"Content-Type"</span>: <span class="c-str">"application/json"</span>,\n  },\n  body: JSON.stringify({ callerId: <span class="c-str">"user_482"</span>, mode: <span class="c-str">"video"</span> }),\n});\n\n<span class="c-key">const</span> { id } = <span class="c-key">await</span> res.json();\nconsole.log(id);'
+      },
+      {
+        lang: 'Node.js',
+        code: '<span class="c-key">const</span> https = require(<span class="c-str">"node:https"</span>);\n\n<span class="c-key">const</span> body = JSON.stringify({ callerId: <span class="c-str">"user_482"</span>, mode: <span class="c-str">"video"</span> });\n\n<span class="c-key">const</span> req = https.request(<span class="c-str">"https://api.naelix.com/calls"</span>, {\n  method: <span class="c-str">"POST"</span>,\n  headers: {\n    <span class="c-str">"X-Api-Key"</span>: <span class="c-str">"nlx_key_7f2a9c1e4b8d3f60"</span>,\n    <span class="c-str">"X-Secret-Key"</span>: <span class="c-str">"nlx_secret_9b1c...e02f"</span>,\n    <span class="c-str">"Content-Type"</span>: <span class="c-str">"application/json"</span>,\n  },\n}, (res) => {\n  <span class="c-key">let</span> data = <span class="c-str">""</span>;\n  res.on(<span class="c-str">"data"</span>, (c) => (data += c));\n  res.on(<span class="c-str">"end"</span>, () => console.log(JSON.parse(data).id));\n});\n\nreq.write(body);\nreq.end();'
+      },
+      {
+        lang: 'Go',
+        code: '<span class="c-key">package</span> main\n\n<span class="c-key">import</span> (\n\t<span class="c-str">"bytes"</span>\n\t<span class="c-str">"net/http"</span>\n)\n\n<span class="c-key">func</span> main() {\n\tbody := []byte(<span class="c-str">\'{"callerId":"user_482","mode":"video"}\'</span>)\n\treq, _ := http.NewRequest(<span class="c-str">"POST"</span>, <span class="c-str">"https://api.naelix.com/calls"</span>, bytes.NewBuffer(body))\n\treq.Header.Set(<span class="c-str">"X-Api-Key"</span>, <span class="c-str">"nlx_key_7f2a9c1e4b8d3f60"</span>)\n\treq.Header.Set(<span class="c-str">"X-Secret-Key"</span>, <span class="c-str">"nlx_secret_9b1c...e02f"</span>)\n\treq.Header.Set(<span class="c-str">"Content-Type"</span>, <span class="c-str">"application/json"</span>)\n\n\thttp.DefaultClient.Do(req)\n}'
+      },
+      {
+        lang: 'PHP',
+        code: '<span class="c-key">&lt;?php</span>\n\n$ch = curl_init(<span class="c-str">"https://api.naelix.com/calls"</span>);\ncurl_setopt($ch, CURLOPT_POST, <span class="c-key">true</span>);\ncurl_setopt($ch, CURLOPT_RETURNTRANSFER, <span class="c-key">true</span>);\ncurl_setopt($ch, CURLOPT_HTTPHEADER, [\n    <span class="c-str">"X-Api-Key: nlx_key_7f2a9c1e4b8d3f60"</span>,\n    <span class="c-str">"X-Secret-Key: nlx_secret_9b1c...e02f"</span>,\n    <span class="c-str">"Content-Type: application/json"</span>,\n]);\ncurl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([\n    <span class="c-str">"callerId"</span> =&gt; <span class="c-str">"user_482"</span>,\n    <span class="c-str">"mode"</span> =&gt; <span class="c-str">"video"</span>,\n]));\n\n$response = json_decode(curl_exec($ch), <span class="c-key">true</span>);\necho $response[<span class="c-str">"id"</span>];'
+      }
+    ];
+
+    var tabsEl = document.getElementById('tabs');
+    var panelsEl = document.getElementById('panels');
+
+    samples.forEach(function (s, i) {
+      var btn = document.createElement('button');
+      btn.className = 'tab-btn' + (i === 0 ? ' active' : '');
+      btn.type = 'button';
+      btn.textContent = s.lang;
+      btn.setAttribute('role', 'tab');
+      btn.dataset.index = i;
+      tabsEl.appendChild(btn);
+
+      var panel = document.createElement('div');
+      panel.className = 'tab-panel' + (i === 0 ? ' active' : '');
+      panel.innerHTML =
+        '<div class="code-wrap"><button class="code-copy" type="button">Copy</button>' +
+        '<pre class="codeblock">' + s.code + '</pre></div>';
+      panelsEl.appendChild(panel);
+
+      btn.addEventListener('click', function () {
+        tabsEl.querySelectorAll('.tab-btn').forEach(function (b) { b.classList.remove('active'); });
+        panelsEl.querySelectorAll('.tab-panel').forEach(function (p) { p.classList.remove('active'); });
+        btn.classList.add('active');
+        panel.classList.add('active');
+      });
+
+      panel.querySelector('.code-copy').addEventListener('click', function () {
+        var pre = panel.querySelector('pre');
+        navigator.clipboard.writeText(pre.textContent).then(function () {
+          var copyBtn = panel.querySelector('.code-copy');
+          var original = copyBtn.textContent;
+          copyBtn.textContent = 'Copied';
+          setTimeout(function () { copyBtn.textContent = original; }, 1400);
+        }).catch(function () {});
+      });
+    });
+  })();
+</script>
