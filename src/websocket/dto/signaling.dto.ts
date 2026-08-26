@@ -1,10 +1,12 @@
 import {
   IsBoolean,
   IsIn,
+  IsInt,
   IsNotEmptyObject,
   IsObject,
   IsOptional,
   IsString,
+  Min,
 } from 'class-validator';
 
 export class JoinRoomDto {
@@ -91,6 +93,23 @@ export class ConsumerIdDto {
 
   @IsString()
   consumerId!: string;
+}
+
+export class SetPreferredLayersDto {
+  @IsString()
+  meetingId!: string;
+
+  @IsString()
+  consumerId!: string;
+
+  @IsInt()
+  @Min(0)
+  spatialLayer!: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  temporalLayer?: number;
 }
 
 export class TransportIdDto {

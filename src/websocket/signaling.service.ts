@@ -1,4 +1,10 @@
-import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Socket } from 'socket.io';
 import { types as mediasoupTypes } from 'mediasoup';
@@ -12,10 +18,16 @@ import { RouterManagerService } from '../mediasoup/router-manager.service';
 import { TransportService } from '../mediasoup/transport.service';
 import { ProducerConsumerService } from '../mediasoup/producer-consumer.service';
 import { TransportDirection } from '../mediasoup/types';
-import { ScreenShareService, isScreenShareProducer } from '../screen-share/screen-share.service';
+import {
+  ScreenShareService,
+  isScreenShareProducer,
+} from '../screen-share/screen-share.service';
 import { CoturnService } from '../coturn/coturn.service';
 import { ChatService, ChatMessage } from '../chat/chat.service';
-import { RealtimeBroadcaster, meetingRoomName } from './realtime-broadcaster.service';
+import {
+  RealtimeBroadcaster,
+  meetingRoomName,
+} from './realtime-broadcaster.service';
 import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { ServerEvent } from '../interfaces/socket-events.enum';
 import { MeetingType } from '../interfaces/meeting-type.enum';
@@ -81,24 +93,37 @@ export class SignalingService {
     @Inject(INSTANCE_CONFIG) private readonly instanceConfig: InstanceAppConfig,
     config: ConfigService,
   ) {
-    this.disconnectGraceMs = config.get<number>('DISCONNECT_GRACE_PERIOD_MS', 10000);
+    this.disconnectGraceMs = config.get<number>(
+      'DISCONNECT_GRACE_PERIOD_MS',
+      10000,
+    );
 
     // Relays RouterManagerService's internal AudioLevelObserver events out to
     // clients. Without this listener, active-speaker detection computes but
     // never reaches anyone — the observer only ever emits on the internal bus.
-    this.routerManager.on('activeSpeaker', (event: { meetingId: string; peerId: string | null }) => {
-      const meeting = this.meetingService.find(event.meetingId);
-      if (!meeting || meeting.isEnded) return;
-      this.broadcaster.emitToMeeting(meeting.namespace, meeting.id, ServerEvent.ACTIVE_SPEAKER_CHANGED, {
-        peerId: event.peerId,
-      });
-    });
+    this.routerManager.on(
+      'activeSpeaker',
+      (event: { meetingId: string; peerId: string | null }) => {
+        const meeting = this.meetingService.find(event.meetingId);
+        if (!meeting || meeting.isEnded) return;
+        this.broadcaster.emitToMeeting(
+          meeting.namespace,
+          meeting.id,
+          ServerEvent.ACTIVE_SPEAKER_CHANGED,
+          {
+            peerId: event.peerId,
+          },
+        );
+      },
+    );
   }
 
   getMeetingForNamespace(meetingId: string, namespace: string): Meeting {
     const meeting = this.meetingService.getOrThrow(meetingId);
     if (meeting.namespace !== namespace) {
-      throw new BadRequestException(`Meeting ${meetingId} does not belong to ${namespace}`);
+      throw new BadRequestException(
+        `Meeting ${meetingId} does not belong to ${namespace}`,
+      );
     }
     return meeting;
   }
@@ -108,7 +133,9 @@ export class SignalingService {
     if (!userId) throw new BadRequestException('Not joined to this meeting');
     const participant = this.participantService.findByUserId(meeting, userId);
     if (!participant || participant.socketId !== client.id) {
-      throw new BadRequestException('Not an active participant of this meeting');
+      throw new BadRequestException(
+        'Not an active participant of this meeting',
+      );
     }
     return participant;
   }
@@ -136,7 +163,10 @@ export class SignalingService {
       // creation). Checked via meetingService.find rather than
       // getMeetingForNamespace here since we don't want to throw yet.
       if (this.meetingService.find(meetingId)) {
-        await this.meetingDirectory.registerOwnership(meetingId, this.instanceConfig);
+        await this.meetingDirectory.registerOwnership(
+          meetingId,
+          this.instanceConfig,
+        );
       }
       return;
     }
@@ -145,7 +175,11 @@ export class SignalingService {
     }
   }
 
-  async joinRoom(client: Socket, meetingId: string, namespace: string): Promise<WaitingResult | JoinedResult> {
+  async joinRoom(
+    client: Socket,
+    meetingId: string,
+    namespace: string,
+  ): Promise<WaitingResult | JoinedResult> {
     // Ownership must be checked BEFORE any local-existence lookup — a
     // meeting owned by another instance was never created in *this*
     // instance's in-memory repository, so getMeetingForNamespace would
@@ -318,13 +352,20 @@ export class SignalingService {
     const participant = this.participantService.findByUserId(meeting, userId);
     if (!participant) return;
 
-    if (participant.presenting) this.screenShare.onStopped(meeting, participant);
+    if (participant.presenting)
+      this.screenShare.onStopped(meeting, participant);
 
     this.participantService.removeParticipant(meeting, userId);
-    this.broadcaster.emitToMeeting(meeting.namespace, meeting.id, ServerEvent.USER_LEFT, { peerId: userId });
+    this.broadcaster.emitToMeeting(
+      meeting.namespace,
+      meeting.id,
+      ServerEvent.USER_LEFT,
+      { peerId: userId },
+    );
 
     if (meeting.type === MeetingType.ONE_TO_ONE) {
-      if (!meeting.isEnded) this.meetingService.end(meeting.id, `${userId} left the call`);
+      if (!meeting.isEnded)
+        this.meetingService.end(meeting.id, `${userId} left the call`);
       return;
     }
 
@@ -341,12 +382,17 @@ export class SignalingService {
     const participant = this.requireParticipant(meeting, client);
     const router = this.routerManager.getRouter(meeting.id);
     const webRtcServer = this.routerManager.getWebRtcServer(meeting.id);
-    if (!router || !webRtcServer) throw new NotFoundException('Router not ready for this meeting');
+    if (!router || !webRtcServer)
+      throw new NotFoundException('Router not ready for this meeting');
 
-    const transport = await this.transportService.createWebRtcTransport(router, webRtcServer, {
-      peerId: participant.userId,
-      direction,
-    });
+    const transport = await this.transportService.createWebRtcTransport(
+      router,
+      webRtcServer,
+      {
+        peerId: participant.userId,
+        direction,
+      },
+    );
     participant.addTransport(transport);
     // The frontend's mediasoup-client wrapper destructures `{ params }` off
     // the ack (see PeerConnection.ts's createTransport/consume) — a
@@ -381,28 +427,50 @@ export class SignalingService {
     if (!transport) throw new NotFoundException('Transport not found');
 
     // peerId is always server-stamped — never trust the client's own claim of identity here.
-    const appData: Record<string, unknown> = { ...clientAppData, peerId: participant.userId };
+    const appData: Record<string, unknown> = {
+      ...clientAppData,
+      peerId: participant.userId,
+    };
     const isScreen = appData.source === 'screen';
     if (isScreen) this.screenShare.assertCanStart(meeting, participant.userId);
 
-    const producer = await this.producerConsumer.produce(transport, { kind, rtpParameters, appData });
+    const producer = await this.producerConsumer.produce(transport, {
+      kind,
+      rtpParameters,
+      appData,
+    });
     participant.addProducer(producer);
 
-    producer.on('transportclose', () => participant.producers.delete(producer.id));
+    producer.on('transportclose', () =>
+      participant.producers.delete(producer.id),
+    );
 
     if (kind === 'audio') {
-      await this.routerManager.addProducerToAudioLevelObserver(meeting.id, producer);
+      await this.routerManager.addProducerToAudioLevelObserver(
+        meeting.id,
+        producer,
+      );
       participant.audioMuted = false;
-      this.broadcaster.emitToMeeting(meeting.namespace, meeting.id, ServerEvent.AUDIO_UNMUTED, {
-        peerId: participant.userId,
-      });
+      this.broadcaster.emitToMeeting(
+        meeting.namespace,
+        meeting.id,
+        ServerEvent.AUDIO_UNMUTED,
+        {
+          peerId: participant.userId,
+        },
+      );
     } else if (isScreen) {
       this.screenShare.onStarted(meeting, participant);
     } else {
       participant.videoEnabled = true;
-      this.broadcaster.emitToMeeting(meeting.namespace, meeting.id, ServerEvent.VIDEO_ENABLED, {
-        peerId: participant.userId,
-      });
+      this.broadcaster.emitToMeeting(
+        meeting.namespace,
+        meeting.id,
+        ServerEvent.VIDEO_ENABLED,
+        {
+          peerId: participant.userId,
+        },
+      );
     }
 
     this.broadcaster.emitToMeetingExcept(
@@ -428,7 +496,8 @@ export class SignalingService {
     if (!transport) throw new NotFoundException('Transport not found');
 
     const router = this.routerManager.getRouter(meeting.id);
-    if (!router) throw new NotFoundException('Router not ready for this meeting');
+    if (!router)
+      throw new NotFoundException('Router not ready for this meeting');
 
     const producer = this.findProducer(meeting, producerId);
     if (!producer) throw new NotFoundException('Producer not found');
@@ -444,9 +513,14 @@ export class SignalingService {
 
     consumer.on('producerclose', () => {
       participant.consumers.delete(consumer.id);
-      this.broadcaster.emitToSocket(meeting.namespace, client.id, ServerEvent.PRODUCER_CLOSED, {
-        producerId,
-      });
+      this.broadcaster.emitToSocket(
+        meeting.namespace,
+        client.id,
+        ServerEvent.PRODUCER_CLOSED,
+        {
+          producerId,
+        },
+      );
     });
 
     // Same `{ params }` wrapper as createTransport above — the client
@@ -454,7 +528,10 @@ export class SignalingService {
     return { params };
   }
 
-  private findProducer(meeting: Meeting, producerId: string): mediasoupTypes.Producer | undefined {
+  private findProducer(
+    meeting: Meeting,
+    producerId: string,
+  ): mediasoupTypes.Producer | undefined {
     for (const p of meeting.participants.values()) {
       const producer = p.findProducer(producerId);
       if (producer) return producer;
@@ -462,7 +539,11 @@ export class SignalingService {
     return undefined;
   }
 
-  async resumeConsumer(client: Socket, meeting: Meeting, consumerId: string): Promise<{ resumed: true }> {
+  async resumeConsumer(
+    client: Socket,
+    meeting: Meeting,
+    consumerId: string,
+  ): Promise<{ resumed: true }> {
     const participant = this.requireParticipant(meeting, client);
     const consumer = participant.consumers.get(consumerId);
     if (!consumer) throw new NotFoundException('Consumer not found');
@@ -470,7 +551,29 @@ export class SignalingService {
     return { resumed: true };
   }
 
-  async pauseProducer(client: Socket, meeting: Meeting, producerId: string): Promise<{ paused: true }> {
+  async setPreferredLayers(
+    client: Socket,
+    meeting: Meeting,
+    consumerId: string,
+    spatialLayer: number,
+    temporalLayer?: number,
+  ): Promise<{ ok: true }> {
+    const participant = this.requireParticipant(meeting, client);
+    const consumer = participant.consumers.get(consumerId);
+    if (!consumer) throw new NotFoundException('Consumer not found');
+    await this.producerConsumer.setPreferredLayers(
+      consumer,
+      spatialLayer,
+      temporalLayer,
+    );
+    return { ok: true };
+  }
+
+  async pauseProducer(
+    client: Socket,
+    meeting: Meeting,
+    producerId: string,
+  ): Promise<{ paused: true }> {
     const participant = this.requireParticipant(meeting, client);
     const producer = participant.producers.get(producerId);
     if (!producer) throw new NotFoundException('Producer not found');
@@ -479,7 +582,11 @@ export class SignalingService {
     return { paused: true };
   }
 
-  async resumeProducer(client: Socket, meeting: Meeting, producerId: string): Promise<{ resumed: true }> {
+  async resumeProducer(
+    client: Socket,
+    meeting: Meeting,
+    producerId: string,
+  ): Promise<{ resumed: true }> {
     const participant = this.requireParticipant(meeting, client);
     const producer = participant.producers.get(producerId);
     if (!producer) throw new NotFoundException('Producer not found');
@@ -488,7 +595,11 @@ export class SignalingService {
     return { resumed: true };
   }
 
-  closeProducer(client: Socket, meeting: Meeting, producerId: string): { closed: true } {
+  closeProducer(
+    client: Socket,
+    meeting: Meeting,
+    producerId: string,
+  ): { closed: true } {
     const participant = this.requireParticipant(meeting, client);
     const producer = participant.producers.get(producerId);
     if (!producer) throw new NotFoundException('Producer not found');
@@ -501,18 +612,36 @@ export class SignalingService {
       this.screenShare.onStopped(meeting, participant);
     } else if (producer.kind === 'video') {
       participant.videoEnabled = false;
-      this.broadcaster.emitToMeeting(meeting.namespace, meeting.id, ServerEvent.VIDEO_DISABLED, {
-        peerId: participant.userId,
-      });
+      this.broadcaster.emitToMeeting(
+        meeting.namespace,
+        meeting.id,
+        ServerEvent.VIDEO_DISABLED,
+        {
+          peerId: participant.userId,
+        },
+      );
     } else {
       participant.audioMuted = true;
-      this.broadcaster.emitToMeeting(meeting.namespace, meeting.id, ServerEvent.AUDIO_MUTED, {
-        peerId: participant.userId,
-        forced: false,
-      });
+      this.broadcaster.emitToMeeting(
+        meeting.namespace,
+        meeting.id,
+        ServerEvent.AUDIO_MUTED,
+        {
+          peerId: participant.userId,
+          forced: false,
+        },
+      );
     }
 
-    this.broadcaster.emitToMeeting(meeting.namespace, meeting.id, ServerEvent.PRODUCER_CLOSED, { producerId });
+    this.broadcaster.emitToMeeting(
+      meeting.namespace,
+      meeting.id,
+      ServerEvent.PRODUCER_CLOSED,
+      {
+        producerId,
+        peerId: participant.userId,
+      },
+    );
     return { closed: true };
   }
 

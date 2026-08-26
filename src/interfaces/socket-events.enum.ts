@@ -10,6 +10,9 @@ export enum ClientEvent {
   RESUME_PRODUCER = 'resumeProducer',
   CLOSE_PRODUCER = 'closeProducer',
   RESUME_CONSUMER = 'resumeConsumer',
+  /** Requests a lower/higher simulcast layer for one consumer — used to bump
+   *  a presenter's video to full quality while screen-sharing/presenting. */
+  SET_PREFERRED_LAYERS = 'setPreferredLayers',
   RESTART_ICE = 'restartIce',
   START_SCREEN_SHARE = 'startScreenShare',
   STOP_SCREEN_SHARE = 'stopScreenShare',

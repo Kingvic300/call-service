@@ -221,10 +221,16 @@ export class MeetingsGateway
   }
 
   @SubscribeMessage(ClientEvent.SET_PREFERRED_LAYERS)
-  onSetPreferredLayers(@ConnectedSocket() client: Socket, @MessageBody() body: unknown) {
+  onSetPreferredLayers(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() body: unknown,
+  ) {
     return respond(() => {
       const dto = validateWsPayload(SetPreferredLayersDto, body);
-      const meeting = this.signaling.getMeetingForNamespace(dto.meetingId, NAMESPACE);
+      const meeting = this.signaling.getMeetingForNamespace(
+        dto.meetingId,
+        NAMESPACE,
+      );
       return this.signaling.setPreferredLayers(
         client,
         meeting,
