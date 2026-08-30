@@ -5,6 +5,7 @@ import { MeetingModule } from '../meeting/meeting.module';
 import { ParticipantModule } from '../participant/participant.module';
 import { ScreenShareModule } from '../screen-share/screen-share.module';
 import { ChatModule } from '../chat/chat.module';
+import { ReactionsModule } from '../reactions/reactions.module';
 
 /**
  * Shared signaling core (mediasoup orchestration + connection auth/rate
@@ -13,7 +14,13 @@ import { ChatModule } from '../chat/chat.module';
  * don't need to be imported here explicitly.
  */
 @Module({
-  imports: [MeetingModule, ParticipantModule, ScreenShareModule, ChatModule],
+  imports: [
+    MeetingModule,
+    ParticipantModule,
+    ScreenShareModule,
+    ChatModule,
+    ReactionsModule,
+  ],
   providers: [SignalingService, ConnectionGuardService],
   exports: [SignalingService, ConnectionGuardService],
 })

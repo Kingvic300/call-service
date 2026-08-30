@@ -36,7 +36,10 @@ function ownerKey(meetingId: string): string {
 export class MeetingDirectoryService {
   constructor(private readonly redis: RedisService) {}
 
-  async registerOwnership(meetingId: string, owner: MeetingOwner): Promise<void> {
+  async registerOwnership(
+    meetingId: string,
+    owner: MeetingOwner,
+  ): Promise<void> {
     if (!this.redis.client) return;
     await this.redis.client.set(
       ownerKey(meetingId),

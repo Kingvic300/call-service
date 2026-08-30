@@ -36,13 +36,28 @@ export class CoturnService {
   generateIceServers(userId: string): IceServer[] {
     const expiry = Math.floor(Date.now() / 1000) + this.ttlSeconds;
     const username = `${expiry}:${userId}`;
-    const credential = crypto.createHmac('sha1', this.secret).update(username).digest('base64');
+    const credential = crypto
+      .createHmac('sha1', this.secret)
+      .update(username)
+      .digest('base64');
 
     return [
       { urls: `stun:${this.host}:${this.port}` },
-      { urls: `turn:${this.host}:${this.port}?transport=udp`, username, credential },
-      { urls: `turn:${this.host}:${this.port}?transport=tcp`, username, credential },
-      { urls: `turns:${this.host}:${this.tlsPort}?transport=tcp`, username, credential },
+      {
+        urls: `turn:${this.host}:${this.port}?transport=udp`,
+        username,
+        credential,
+      },
+      {
+        urls: `turn:${this.host}:${this.port}?transport=tcp`,
+        username,
+        credential,
+      },
+      {
+        urls: `turns:${this.host}:${this.tlsPort}?transport=tcp`,
+        username,
+        credential,
+      },
     ];
   }
 }

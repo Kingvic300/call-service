@@ -2,7 +2,10 @@ import { Module } from '@nestjs/common';
 import { ChatModule } from '../chat/chat.module';
 import { MeetingService } from './meeting.service';
 import { MeetingController } from './meeting.controller';
-import { InMemoryMeetingRepository, MEETING_REPOSITORY } from './meeting.repository';
+import {
+  InMemoryMeetingRepository,
+  MEETING_REPOSITORY,
+} from './meeting.repository';
 import { MeetingDirectoryService } from './meeting-directory.service';
 import { InstanceForwarderService } from './instance-forwarder.service';
 import { MeetingOwnershipMiddleware } from './meeting-ownership.middleware';

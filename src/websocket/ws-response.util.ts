@@ -22,8 +22,15 @@ export async function respond<T>(fn: () => Promise<T> | T): Promise<WsAck<T>> {
     return { success: true, data };
   } catch (err) {
     if (err instanceof WrongInstanceError) {
-      return { success: false, error: err.message, data: { redirectUrl: err.redirectUrl } };
+      return {
+        success: false,
+        error: err.message,
+        data: { redirectUrl: err.redirectUrl },
+      };
     }
-    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Unknown error',
+    };
   }
 }

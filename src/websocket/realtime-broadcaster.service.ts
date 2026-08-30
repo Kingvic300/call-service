@@ -26,8 +26,16 @@ export class RealtimeBroadcaster {
     this.namespaces.set(name, nsp);
   }
 
-  emitToMeeting(namespace: string, meetingId: string, event: string, payload: unknown): void {
-    this.namespaces.get(namespace)?.to(meetingRoomName(meetingId)).emit(event, payload);
+  emitToMeeting(
+    namespace: string,
+    meetingId: string,
+    event: string,
+    payload: unknown,
+  ): void {
+    this.namespaces
+      .get(namespace)
+      ?.to(meetingRoomName(meetingId))
+      .emit(event, payload);
   }
 
   emitToMeetingExcept(
@@ -44,7 +52,12 @@ export class RealtimeBroadcaster {
       .emit(event, payload);
   }
 
-  emitToSocket(namespace: string, socketId: string, event: string, payload: unknown): void {
+  emitToSocket(
+    namespace: string,
+    socketId: string,
+    event: string,
+    payload: unknown,
+  ): void {
     this.namespaces.get(namespace)?.to(socketId).emit(event, payload);
   }
 

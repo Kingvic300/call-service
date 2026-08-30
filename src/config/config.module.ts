@@ -1,6 +1,9 @@
 import { Global, Module } from '@nestjs/common';
 import { hostname } from 'os';
-import { ConfigModule as NestConfigModule, ConfigService } from '@nestjs/config';
+import {
+  ConfigModule as NestConfigModule,
+  ConfigService,
+} from '@nestjs/config';
 import { buildMediasoupConfig, MediasoupAppConfig } from './mediasoup.config';
 import { validateEnv } from './env.validation';
 
@@ -21,8 +24,10 @@ export interface InstanceAppConfig {
 function buildInstanceConfig(config: ConfigService): InstanceAppConfig {
   const port = config.get<number>('PORT', 4000);
   return {
-    instanceId: config.get<string>('INSTANCE_ID') ?? `${hostname()}-${process.pid}`,
-    internalUrl: config.get<string>('INSTANCE_INTERNAL_URL') ?? `http://127.0.0.1:${port}`,
+    instanceId:
+      config.get<string>('INSTANCE_ID') ?? `${hostname()}-${process.pid}`,
+    internalUrl:
+      config.get<string>('INSTANCE_INTERNAL_URL') ?? `http://127.0.0.1:${port}`,
   };
 }
 
@@ -39,12 +44,14 @@ function buildInstanceConfig(config: ConfigService): InstanceAppConfig {
     {
       provide: MEDIASOUP_CONFIG,
       inject: [ConfigService],
-      useFactory: (config: ConfigService): MediasoupAppConfig => buildMediasoupConfig(config),
+      useFactory: (config: ConfigService): MediasoupAppConfig =>
+        buildMediasoupConfig(config),
     },
     {
       provide: INSTANCE_CONFIG,
       inject: [ConfigService],
-      useFactory: (config: ConfigService): InstanceAppConfig => buildInstanceConfig(config),
+      useFactory: (config: ConfigService): InstanceAppConfig =>
+        buildInstanceConfig(config),
     },
   ],
   exports: [MEDIASOUP_CONFIG, INSTANCE_CONFIG],

@@ -1,4 +1,10 @@
-import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import { types as mediasoupTypes } from 'mediasoup';
 import { RouterManagerService } from '../mediasoup/router-manager.service';
@@ -10,6 +16,14 @@ import { INSTANCE_CONFIG, InstanceAppConfig } from '../config/config.module';
 import { Meeting } from './entities/meeting.entity';
 import { IMeetingRepository, MEETING_REPOSITORY } from './meeting.repository';
 import { MeetingDirectoryService } from './meeting-directory.service';
+
+// How long an ended meeting's record stays readable via GET /meetings/:id
+// (e.g. for a caller fetching final state right after end) before its
+// in-memory record is dropped. Without this, InMemoryMeetingRepository grows
+// by one permanent entry per meeting/call ever completed, for the life of
+// the process — and getStats() (polled by /health + /metrics roughly twice
+// a minute) does a full scan of that ever-growing map on every call.
+const ENDED_MEETING_RETENTION_MS = 5 * 60_000;
 
 export interface CreateMeetingParams {
   id?: string;
@@ -59,8 +73,14 @@ export class MeetingService {
     // meeting creation itself, only cross-instance routing).
     this.meetingDirectory
       .registerOwnership(id, this.instanceConfig)
-      .catch((err: Error) => this.logger.warn(`Failed to register ownership for ${id}: ${err.message}`));
-    this.logger.log(`Meeting ${id} created (type=${params.type}, host=${params.hostId})`);
+      .catch((err: Error) =>
+        this.logger.warn(
+          `Failed to register ownership for ${id}: ${err.message}`,
+        ),
+      );
+    this.logger.log(
+      `Meeting ${id} created (type=${params.type}, host=${params.hostId})`,
+    );
     return meeting;
   }
 
@@ -85,10 +105,15 @@ export class MeetingService {
 
     meeting.endedAt = new Date();
 
-    this.broadcaster.emitToMeeting(meeting.namespace, meeting.id, ServerEvent.MEETING_ENDED, {
-      meetingId: id,
-      reason,
-    });
+    this.broadcaster.emitToMeeting(
+      meeting.namespace,
+      meeting.id,
+      ServerEvent.MEETING_ENDED,
+      {
+        meetingId: id,
+        reason,
+      },
+    );
     for (const participant of meeting.participants.values()) {
       participant.closeAllMedia();
       // Deferred: if the caller of end() is itself a socket handler (e.g. the
@@ -98,7 +123,9 @@ export class MeetingService {
       // setImmediate lets the current handler's return value go out first.
       const namespace = meeting.namespace;
       const socketId = participant.socketId;
-      setImmediate(() => this.broadcaster.disconnectSocket(namespace, socketId));
+      setImmediate(() =>
+        this.broadcaster.disconnectSocket(namespace, socketId),
+      );
     }
     meeting.participants.clear();
     meeting.waitingParticipants.clear();
@@ -111,8 +138,19 @@ export class MeetingService {
     this.chatService.clearHistory(id);
     this.meetingDirectory
       .clearOwnership(id)
-      .catch((err: Error) => this.logger.warn(`Failed to clear ownership for ${id}: ${err.message}`));
+      .catch((err: Error) =>
+        this.logger.warn(`Failed to clear ownership for ${id}: ${err.message}`),
+      );
     this.logger.log(`Meeting ${id} ended: ${reason}`);
+
+    const timer = setTimeout(() => {
+      // Guard: a caller may have already hard-deleted (or recreated with the
+      // same id, in the unlikely event it was reused) in the meantime.
+      const current = this.repository.findById(id);
+      if (current === meeting) this.repository.delete(id);
+    }, ENDED_MEETING_RETENTION_MS);
+    timer.unref();
+
     return meeting;
   }
 
@@ -125,11 +163,22 @@ export class MeetingService {
   }
 
   /** Used by the /metrics endpoint — not exposed over the public REST API. */
-  getStats(): { totalMeetings: number; activeMeetings: number; totalParticipants: number } {
+  getStats(): {
+    totalMeetings: number;
+    activeMeetings: number;
+    totalParticipants: number;
+  } {
     const all = this.repository.list();
     const active = all.filter((m) => !m.isEnded);
-    const totalParticipants = active.reduce((sum, m) => sum + m.participantCount, 0);
-    return { totalMeetings: all.length, activeMeetings: active.length, totalParticipants };
+    const totalParticipants = active.reduce(
+      (sum, m) => sum + m.participantCount,
+      0,
+    );
+    return {
+      totalMeetings: all.length,
+      activeMeetings: active.length,
+      totalParticipants,
+    };
   }
 
   broadcastStateUpdate(meeting: Meeting): void {

@@ -20,7 +20,9 @@ export class RedisService implements OnModuleDestroy {
     if (!url) return;
 
     this.client = new Redis(url, { lazyConnect: false });
-    this.client.on('error', (err) => this.logger.error(`Redis client error: ${err.message}`));
+    this.client.on('error', (err) =>
+      this.logger.error(`Redis client error: ${err.message}`),
+    );
     this.logger.log('Connected to Redis — multi-instance mode enabled');
   }
 
@@ -35,7 +37,8 @@ export class RedisService implements OnModuleDestroy {
    * also serve GET/SET calls (see @socket.io/redis-adapter's docs).
    */
   createDuplicate(): Redis {
-    if (!this.client) throw new Error('Redis is not configured (REDIS_URL unset)');
+    if (!this.client)
+      throw new Error('Redis is not configured (REDIS_URL unset)');
     return this.client.duplicate();
   }
 

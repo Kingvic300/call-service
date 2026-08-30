@@ -46,7 +46,9 @@ export class MeetingOwnershipMiddleware implements NestMiddleware {
       return;
     }
 
-    this.logger.debug(`Forwarding ${req.method} ${req.originalUrl} to owner ${owner.instanceId}`);
+    this.logger.debug(
+      `Forwarding ${req.method} ${req.originalUrl} to owner ${owner.instanceId}`,
+    );
     await this.forwarder.forward(owner.internalUrl, req, res);
   }
 }

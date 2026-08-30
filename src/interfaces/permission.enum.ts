@@ -23,7 +23,10 @@ export enum Permission {
  * "permissions must be configurable" requirement without hardcoding a single
  * global policy.
  */
-export const DEFAULT_ROLE_PERMISSIONS: Record<ParticipantRole, ReadonlySet<Permission>> = {
+export const DEFAULT_ROLE_PERMISSIONS: Record<
+  ParticipantRole,
+  ReadonlySet<Permission>
+> = {
   [ParticipantRole.HOST]: new Set(Object.values(Permission)),
   [ParticipantRole.MODERATOR]: new Set([
     Permission.MUTE_OTHERS,

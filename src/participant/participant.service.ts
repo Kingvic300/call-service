@@ -41,14 +41,16 @@ export class ParticipantService {
 
   promote(meeting: Meeting, userId: string): Participant | undefined {
     const participant = meeting.participants.get(userId);
-    if (!participant || participant.role === ParticipantRole.HOST) return participant;
+    if (!participant || participant.role === ParticipantRole.HOST)
+      return participant;
     participant.role = ParticipantRole.MODERATOR;
     return participant;
   }
 
   demote(meeting: Meeting, userId: string): Participant | undefined {
     const participant = meeting.participants.get(userId);
-    if (!participant || participant.role === ParticipantRole.HOST) return participant;
+    if (!participant || participant.role === ParticipantRole.HOST)
+      return participant;
     participant.role = ParticipantRole.PARTICIPANT;
     return participant;
   }

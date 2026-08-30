@@ -1,4 +1,9 @@
-import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { Meeting } from '../meeting/entities/meeting.entity';
 import { ParticipantService } from '../participant/participant.service';
 import { ProducerConsumerService } from '../mediasoup/producer-consumer.service';
@@ -27,47 +32,82 @@ export class ModerationService {
     private readonly screenShare: ScreenShareService,
   ) {}
 
-  private assert(meeting: Meeting, actor: ModerationActor, permission: Permission): void {
+  private assert(
+    meeting: Meeting,
+    actor: ModerationActor,
+    permission: Permission,
+  ): void {
     if (actor.role === 'trusted') return;
     if (!hasPermission(meeting, actor.role, permission)) {
       throw new ForbiddenException(`Missing permission: ${permission}`);
     }
   }
 
-  async muteParticipant(meeting: Meeting, actor: ModerationActor, targetUserId: string): Promise<void> {
+  async muteParticipant(
+    meeting: Meeting,
+    actor: ModerationActor,
+    targetUserId: string,
+  ): Promise<void> {
     this.assert(meeting, actor, Permission.MUTE_OTHERS);
     const target = this.participants.findByUserId(meeting, targetUserId);
-    if (!target) throw new NotFoundException(`Participant ${targetUserId} not in meeting`);
+    if (!target)
+      throw new NotFoundException(`Participant ${targetUserId} not in meeting`);
 
     for (const producer of target.producers.values()) {
-      if (producer.kind === 'audio') await this.producerConsumer.pauseProducer(producer);
+      if (producer.kind === 'audio')
+        await this.producerConsumer.pauseProducer(producer);
     }
     target.audioMuted = true;
 
-    this.broadcaster.emitToSocket(meeting.namespace, target.socketId, ServerEvent.FORCE_MUTED, {
-      by: actor.userId,
-    });
-    this.broadcaster.emitToMeeting(meeting.namespace, meeting.id, ServerEvent.AUDIO_MUTED, {
-      peerId: targetUserId,
-      forced: true,
-    });
+    this.broadcaster.emitToSocket(
+      meeting.namespace,
+      target.socketId,
+      ServerEvent.FORCE_MUTED,
+      {
+        by: actor.userId,
+      },
+    );
+    this.broadcaster.emitToMeeting(
+      meeting.namespace,
+      meeting.id,
+      ServerEvent.AUDIO_MUTED,
+      {
+        peerId: targetUserId,
+        forced: true,
+      },
+    );
   }
 
   /** Unmute can only be *requested* — mirrors Zoom/Meet: a host can silence you, never force your mic on. */
-  requestUnmute(meeting: Meeting, actor: ModerationActor, targetUserId: string): void {
+  requestUnmute(
+    meeting: Meeting,
+    actor: ModerationActor,
+    targetUserId: string,
+  ): void {
     this.assert(meeting, actor, Permission.REQUEST_UNMUTE);
     const target = this.participants.findByUserId(meeting, targetUserId);
-    if (!target) throw new NotFoundException(`Participant ${targetUserId} not in meeting`);
+    if (!target)
+      throw new NotFoundException(`Participant ${targetUserId} not in meeting`);
 
-    this.broadcaster.emitToSocket(meeting.namespace, target.socketId, ServerEvent.UNMUTE_REQUESTED, {
-      by: actor.userId,
-    });
+    this.broadcaster.emitToSocket(
+      meeting.namespace,
+      target.socketId,
+      ServerEvent.UNMUTE_REQUESTED,
+      {
+        by: actor.userId,
+      },
+    );
   }
 
-  removeParticipant(meeting: Meeting, actor: ModerationActor, targetUserId: string): void {
+  removeParticipant(
+    meeting: Meeting,
+    actor: ModerationActor,
+    targetUserId: string,
+  ): void {
     this.assert(meeting, actor, Permission.REMOVE_PARTICIPANT);
     const target = this.participants.findByUserId(meeting, targetUserId);
-    if (!target) throw new NotFoundException(`Participant ${targetUserId} not in meeting`);
+    if (!target)
+      throw new NotFoundException(`Participant ${targetUserId} not in meeting`);
 
     // REMOVE_PARTICIPANT is granted to MODERATOR by the default permission
     // matrix (a moderator is expected to police regular participants) —
@@ -75,17 +115,29 @@ export class ModerationService {
     // host themselves out of their own meeting. The trusted REST path
     // (already authorized upstream by the real backend, e.g. an admin
     // action) is deliberately exempt.
-    if (actor.role === ParticipantRole.MODERATOR && target.role === ParticipantRole.HOST) {
+    if (
+      actor.role === ParticipantRole.MODERATOR &&
+      target.role === ParticipantRole.HOST
+    ) {
       throw new ForbiddenException('Moderators cannot remove the host');
     }
 
     this.participants.removeParticipant(meeting, targetUserId);
 
-    this.broadcaster.emitToMeeting(meeting.namespace, meeting.id, ServerEvent.PARTICIPANT_REMOVED, {
-      peerId: targetUserId,
-      by: actor.userId,
-    });
-    this.broadcaster.disconnectSocket(meeting.namespace, target.socketId, 'You were removed from the meeting');
+    this.broadcaster.emitToMeeting(
+      meeting.namespace,
+      meeting.id,
+      ServerEvent.PARTICIPANT_REMOVED,
+      {
+        peerId: targetUserId,
+        by: actor.userId,
+      },
+    );
+    this.broadcaster.disconnectSocket(
+      meeting.namespace,
+      target.socketId,
+      'You were removed from the meeting',
+    );
   }
 
   setLocked(meeting: Meeting, actor: ModerationActor, locked: boolean): void {
@@ -127,41 +179,71 @@ export class ModerationService {
     );
   }
 
-  promote(meeting: Meeting, actor: ModerationActor, targetUserId: string): void {
+  promote(
+    meeting: Meeting,
+    actor: ModerationActor,
+    targetUserId: string,
+  ): void {
     this.assert(meeting, actor, Permission.PROMOTE_MODERATOR);
     const target = this.participants.promote(meeting, targetUserId);
-    if (!target) throw new NotFoundException(`Participant ${targetUserId} not in meeting`);
+    if (!target)
+      throw new NotFoundException(`Participant ${targetUserId} not in meeting`);
 
-    this.broadcaster.emitToMeeting(meeting.namespace, meeting.id, ServerEvent.PARTICIPANT_ROLE_CHANGED, {
-      peerId: targetUserId,
-      role: target.role,
-    });
+    this.broadcaster.emitToMeeting(
+      meeting.namespace,
+      meeting.id,
+      ServerEvent.PARTICIPANT_ROLE_CHANGED,
+      {
+        peerId: targetUserId,
+        role: target.role,
+      },
+    );
   }
 
   demote(meeting: Meeting, actor: ModerationActor, targetUserId: string): void {
     this.assert(meeting, actor, Permission.DEMOTE_MODERATOR);
     const target = this.participants.demote(meeting, targetUserId);
-    if (!target) throw new NotFoundException(`Participant ${targetUserId} not in meeting`);
+    if (!target)
+      throw new NotFoundException(`Participant ${targetUserId} not in meeting`);
 
-    this.broadcaster.emitToMeeting(meeting.namespace, meeting.id, ServerEvent.PARTICIPANT_ROLE_CHANGED, {
-      peerId: targetUserId,
-      role: target.role,
-    });
+    this.broadcaster.emitToMeeting(
+      meeting.namespace,
+      meeting.id,
+      ServerEvent.PARTICIPANT_ROLE_CHANGED,
+      {
+        peerId: targetUserId,
+        role: target.role,
+      },
+    );
   }
 
-  lowerHand(meeting: Meeting, actor: ModerationActor, targetUserId: string): void {
+  lowerHand(
+    meeting: Meeting,
+    actor: ModerationActor,
+    targetUserId: string,
+  ): void {
     this.assert(meeting, actor, Permission.LOWER_HAND);
     const target = this.participants.findByUserId(meeting, targetUserId);
-    if (!target) throw new NotFoundException(`Participant ${targetUserId} not in meeting`);
+    if (!target)
+      throw new NotFoundException(`Participant ${targetUserId} not in meeting`);
 
     target.handRaised = false;
-    this.broadcaster.emitToMeeting(meeting.namespace, meeting.id, ServerEvent.HAND_LOWERED, {
-      peerId: targetUserId,
-    });
+    this.broadcaster.emitToMeeting(
+      meeting.namespace,
+      meeting.id,
+      ServerEvent.HAND_LOWERED,
+      {
+        peerId: targetUserId,
+      },
+    );
   }
 
   /** Lowers the participant's hand and invites them to unmute in one host action. */
-  inviteToSpeak(meeting: Meeting, actor: ModerationActor, targetUserId: string): void {
+  inviteToSpeak(
+    meeting: Meeting,
+    actor: ModerationActor,
+    targetUserId: string,
+  ): void {
     this.assert(meeting, actor, Permission.INVITE_TO_SPEAK);
     this.lowerHand(meeting, { ...actor, role: 'trusted' }, targetUserId);
     this.requestUnmute(meeting, { ...actor, role: 'trusted' }, targetUserId);

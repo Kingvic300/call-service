@@ -99,8 +99,12 @@ export class ProducerConsumerService {
     temporalLayer = 2,
   ): Promise<void> {
     if (consumer.kind !== 'video') return;
-    await consumer.setPreferredLayers({ spatialLayer, temporalLayer }).catch((err: Error) => {
-      this.logger.debug(`setPreferredLayers failed for consumer ${consumer.id}: ${err.message}`);
-    });
+    await consumer
+      .setPreferredLayers({ spatialLayer, temporalLayer })
+      .catch((err: Error) => {
+        this.logger.debug(
+          `setPreferredLayers failed for consumer ${consumer.id}: ${err.message}`,
+        );
+      });
   }
 }

@@ -14,14 +14,17 @@ export interface TransportParams {
 export class TransportService {
   private readonly logger = new Logger(TransportService.name);
 
-  constructor(@Inject(MEDIASOUP_CONFIG) private readonly config: MediasoupAppConfig) {}
+  constructor(
+    @Inject(MEDIASOUP_CONFIG) private readonly config: MediasoupAppConfig,
+  ) {}
 
   async createWebRtcTransport(
     router: mediasoupTypes.Router,
     webRtcServer: mediasoupTypes.WebRtcServer,
     appData: Record<string, unknown>,
   ): Promise<mediasoupTypes.WebRtcTransport> {
-    const { initialAvailableOutgoingBitrate, maxIncomingBitrate } = this.config.webRtcTransport;
+    const { initialAvailableOutgoingBitrate, maxIncomingBitrate } =
+      this.config.webRtcTransport;
 
     const transport = await router.createWebRtcTransport({
       webRtcServer,
@@ -29,9 +32,13 @@ export class TransportService {
       appData,
     });
 
-    await transport.setMaxIncomingBitrate(maxIncomingBitrate).catch((err: Error) => {
-      this.logger.warn(`setMaxIncomingBitrate failed for transport ${transport.id}: ${err.message}`);
-    });
+    await transport
+      .setMaxIncomingBitrate(maxIncomingBitrate)
+      .catch((err: Error) => {
+        this.logger.warn(
+          `setMaxIncomingBitrate failed for transport ${transport.id}: ${err.message}`,
+        );
+      });
 
     transport.on('dtlsstatechange', (state) => {
       if (state === 'failed' || state === 'closed') {
@@ -67,7 +74,9 @@ export class TransportService {
   }
 
   /** ICE restart on network switch / connectivity loss (spec: "ICE restart"). */
-  async restartIce(transport: mediasoupTypes.WebRtcTransport): Promise<mediasoupTypes.IceParameters> {
+  async restartIce(
+    transport: mediasoupTypes.WebRtcTransport,
+  ): Promise<mediasoupTypes.IceParameters> {
     return transport.restartIce();
   }
 }

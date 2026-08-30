@@ -24,6 +24,7 @@ import {
 } from '../screen-share/screen-share.service';
 import { CoturnService } from '../coturn/coturn.service';
 import { ChatService, ChatMessage } from '../chat/chat.service';
+import { ReactionsService } from '../reactions/reactions.service';
 import {
   RealtimeBroadcaster,
   meetingRoomName,
@@ -89,6 +90,7 @@ export class SignalingService {
     private readonly screenShare: ScreenShareService,
     private readonly coturn: CoturnService,
     private readonly chatService: ChatService,
+    private readonly reactionsService: ReactionsService,
     private readonly broadcaster: RealtimeBroadcaster,
     @Inject(INSTANCE_CONFIG) private readonly instanceConfig: InstanceAppConfig,
     config: ConfigService,
@@ -354,6 +356,12 @@ export class SignalingService {
 
     if (participant.presenting)
       this.screenShare.onStopped(meeting, participant);
+
+    // Otherwise this user's burst-throttle entry in ReactionsService.recent
+    // is never removed — it only shrinks to an empty array, staying resident
+    // for the life of the process (one leaked Map entry per distinct user
+    // who has ever sent a reaction in any meeting).
+    this.reactionsService.clearUser(userId);
 
     this.participantService.removeParticipant(meeting, userId);
     this.broadcaster.emitToMeeting(

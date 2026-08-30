@@ -12,7 +12,9 @@ export class HealthController {
   ) {}
 
   @Get()
-  @ApiOperation({ summary: 'Service health, mediasoup worker stats, and meeting counts' })
+  @ApiOperation({
+    summary: 'Service health, mediasoup worker stats, and meeting counts',
+  })
   check() {
     const workers = this.workerPool.getStats();
     const healthy = workers.length > 0;

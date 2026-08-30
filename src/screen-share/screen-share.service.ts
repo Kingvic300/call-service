@@ -23,7 +23,9 @@ export class ScreenShareService {
   /** Call before accepting a produce() call whose appData.source === SCREEN_SHARE_SOURCE. */
   assertCanStart(meeting: Meeting, userId: string): void {
     if (!meeting.screenShareEnabled) {
-      throw new ForbiddenException('Screen sharing is disabled in this meeting');
+      throw new ForbiddenException(
+        'Screen sharing is disabled in this meeting',
+      );
     }
     if (meeting.activePresenterId && meeting.activePresenterId !== userId) {
       throw new ForbiddenException('Another participant is already presenting');
@@ -33,9 +35,14 @@ export class ScreenShareService {
   onStarted(meeting: Meeting, participant: Participant): void {
     meeting.activePresenterId = participant.userId;
     participant.presenting = true;
-    this.broadcaster.emitToMeeting(meeting.namespace, meeting.id, ServerEvent.SCREEN_SHARE_STARTED, {
-      peerId: participant.userId,
-    });
+    this.broadcaster.emitToMeeting(
+      meeting.namespace,
+      meeting.id,
+      ServerEvent.SCREEN_SHARE_STARTED,
+      {
+        peerId: participant.userId,
+      },
+    );
   }
 
   onStopped(meeting: Meeting, participant: Participant): void {
@@ -43,9 +50,14 @@ export class ScreenShareService {
       meeting.activePresenterId = null;
     }
     participant.presenting = false;
-    this.broadcaster.emitToMeeting(meeting.namespace, meeting.id, ServerEvent.SCREEN_SHARE_STOPPED, {
-      peerId: participant.userId,
-    });
+    this.broadcaster.emitToMeeting(
+      meeting.namespace,
+      meeting.id,
+      ServerEvent.SCREEN_SHARE_STOPPED,
+      {
+        peerId: participant.userId,
+      },
+    );
   }
 
   /** Used by ModerationService when a host disables screen sharing mid-meeting. */
@@ -58,12 +70,15 @@ export class ScreenShareService {
     }
 
     for (const producer of presenter.producers.values()) {
-      if (isScreenShareProducer(producer)) this.producerConsumer.closeProducer(producer);
+      if (isScreenShareProducer(producer))
+        this.producerConsumer.closeProducer(producer);
     }
     this.onStopped(meeting, presenter);
   }
 }
 
-export function isScreenShareProducer(producer: mediasoupTypes.Producer): boolean {
+export function isScreenShareProducer(
+  producer: mediasoupTypes.Producer,
+): boolean {
   return producer.appData?.source === SCREEN_SHARE_SOURCE;
 }

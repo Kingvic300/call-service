@@ -23,7 +23,11 @@ export class ReactionsService {
   /** userId -> recent reaction timestamps, for simple burst throttling. */
   private readonly recent = new Map<string, number[]>();
 
-  validate(meeting: Meeting, userId: string, emoji: string): asserts emoji is ReactionEmoji {
+  validate(
+    meeting: Meeting,
+    userId: string,
+    emoji: string,
+  ): asserts emoji is ReactionEmoji {
     if (!meeting.reactionsEnabled) {
       throw new ForbiddenException('Reactions are disabled in this meeting');
     }
@@ -32,7 +36,9 @@ export class ReactionsService {
     }
 
     const now = Date.now();
-    const timestamps = (this.recent.get(userId) ?? []).filter((t) => now - t < WINDOW_MS);
+    const timestamps = (this.recent.get(userId) ?? []).filter(
+      (t) => now - t < WINDOW_MS,
+    );
     if (timestamps.length >= MAX_REACTIONS_PER_WINDOW) {
       throw new ForbiddenException('Reaction rate limit exceeded');
     }

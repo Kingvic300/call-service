@@ -48,8 +48,11 @@ const MEDIA_CODECS: mediasoupTypes.RouterRtpCodecCapability[] = [
   },
 ];
 
-export function buildMediasoupConfig(config: ConfigService): MediasoupAppConfig {
-  const numWorkers = config.get<number>('MEDIASOUP_NUM_WORKERS') ?? os.cpus().length;
+export function buildMediasoupConfig(
+  config: ConfigService,
+): MediasoupAppConfig {
+  const numWorkers =
+    config.get<number>('MEDIASOUP_NUM_WORKERS') ?? os.cpus().length;
   const listenIp = config.get<string>('MEDIASOUP_LISTEN_IP', '0.0.0.0');
   const announcedAddress = config.getOrThrow<string>('MEDIASOUP_ANNOUNCED_IP');
   const webRtcPort = config.get<number>('MEDIASOUP_WEBRTC_PORT', 44000);
@@ -85,7 +88,10 @@ export function buildMediasoupConfig(config: ConfigService): MediasoupAppConfig 
         'MEDIASOUP_INITIAL_AVAILABLE_OUTGOING_BITRATE',
         800000,
       ),
-      maxIncomingBitrate: config.get<number>('MEDIASOUP_MAX_INCOMING_BITRATE', 1500000),
+      maxIncomingBitrate: config.get<number>(
+        'MEDIASOUP_MAX_INCOMING_BITRATE',
+        1500000,
+      ),
     },
   };
 }

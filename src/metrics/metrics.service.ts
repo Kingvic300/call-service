@@ -48,6 +48,9 @@ export class MetricsService {
     this.meetingsGauge.set(stats.activeMeetings);
     this.participantsGauge.set(stats.totalParticipants);
 
-    return { contentType: this.registry.contentType, body: await this.registry.metrics() };
+    return {
+      contentType: this.registry.contentType,
+      body: await this.registry.metrics(),
+    };
   }
 }

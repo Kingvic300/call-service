@@ -14,7 +14,11 @@ import { Request, Response } from 'express';
 export class InstanceForwarderService {
   private readonly logger = new Logger(InstanceForwarderService.name);
 
-  async forward(targetBaseUrl: string, req: Request, res: Response): Promise<void> {
+  async forward(
+    targetBaseUrl: string,
+    req: Request,
+    res: Response,
+  ): Promise<void> {
     const url = `${targetBaseUrl}${req.originalUrl}`;
     const apiKey = req.header('x-api-key');
 
@@ -25,18 +29,28 @@ export class InstanceForwarderService {
           'Content-Type': 'application/json',
           ...(apiKey ? { 'X-API-Key': apiKey } : {}),
         },
-        body: ['GET', 'HEAD'].includes(req.method) ? undefined : JSON.stringify(req.body ?? {}),
+        body: ['GET', 'HEAD'].includes(req.method)
+          ? undefined
+          : JSON.stringify(req.body ?? {}),
       });
 
       const text = await upstream.text();
       res.status(upstream.status);
-      res.setHeader('Content-Type', upstream.headers.get('content-type') ?? 'application/json');
+      res.setHeader(
+        'Content-Type',
+        upstream.headers.get('content-type') ?? 'application/json',
+      );
       res.send(text);
     } catch (err) {
-      this.logger.error(`Failed to forward ${req.method} ${req.originalUrl} to ${targetBaseUrl}: ${
-        err instanceof Error ? err.message : err
-      }`);
-      res.status(502).json({ statusCode: 502, message: 'Failed to reach the meeting\'s owning instance' });
+      this.logger.error(
+        `Failed to forward ${req.method} ${req.originalUrl} to ${targetBaseUrl}: ${
+          err instanceof Error ? err.message : err
+        }`,
+      );
+      res.status(502).json({
+        statusCode: 502,
+        message: "Failed to reach the meeting's owning instance",
+      });
     }
   }
 }

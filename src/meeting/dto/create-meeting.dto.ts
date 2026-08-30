@@ -6,7 +6,9 @@ export class CreateMeetingDto {
   // Not a UUID: callers (e.g. NTeam's frontend) mint their own Meet/Zoom-style
   // room codes client-side and expect the room to be created under that exact
   // id — MeetingService.create() only ever uses `id` as an opaque Map key.
-  @ApiPropertyOptional({ description: 'Defaults to a generated UUID if omitted.' })
+  @ApiPropertyOptional({
+    description: 'Defaults to a generated UUID if omitted.',
+  })
   @IsOptional()
   @IsString()
   id?: string;

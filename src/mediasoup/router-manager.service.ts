@@ -23,7 +23,10 @@ export class RouterManagerService extends EventEmitter {
   private readonly logger = new Logger(RouterManagerService.name);
   private readonly rooms = new Map<string, RoomMediaContext>();
   /** In-flight router creations, keyed by meetingId — see getOrCreateRouter. */
-  private readonly pendingRooms = new Map<string, Promise<mediasoupTypes.Router>>();
+  private readonly pendingRooms = new Map<
+    string,
+    Promise<mediasoupTypes.Router>
+  >();
 
   constructor(
     private readonly workerPool: WorkerPoolService,
@@ -84,11 +87,16 @@ export class RouterManagerService extends EventEmitter {
       }
     });
     audioLevelObserver.on('silence', () => {
-      this.emit('activeSpeaker', { meetingId, peerId: null } satisfies ActiveSpeakerEvent);
+      this.emit('activeSpeaker', {
+        meetingId,
+        peerId: null,
+      } satisfies ActiveSpeakerEvent);
     });
 
     this.rooms.set(meetingId, { router, worker, audioLevelObserver });
-    this.logger.log(`Router created for meeting ${meetingId} on worker ${worker.pid}`);
+    this.logger.log(
+      `Router created for meeting ${meetingId} on worker ${worker.pid}`,
+    );
     return router;
   }
 

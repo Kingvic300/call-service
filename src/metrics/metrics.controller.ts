@@ -12,7 +12,8 @@ export class MetricsController {
   @Header('Cache-Control', 'no-cache')
   @ApiOperation({
     summary: 'Prometheus metrics',
-    description: 'Plain-text exposition format, not JSON — for a scraper, not interactive use.',
+    description:
+      'Plain-text exposition format, not JSON — for a scraper, not interactive use.',
   })
   async get(@Res() res: Response): Promise<void> {
     const { contentType, body } = await this.metrics.getMetrics();

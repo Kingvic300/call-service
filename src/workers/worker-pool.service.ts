@@ -1,4 +1,10 @@
-import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import * as mediasoup from 'mediasoup';
 import { types as mediasoupTypes } from 'mediasoup';
 import { MEDIASOUP_CONFIG } from '../config/config.module';
@@ -31,7 +37,9 @@ export class WorkerPoolService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(WorkerPoolService.name);
   private readonly entries = new Map<number, WorkerEntry>();
 
-  constructor(@Inject(MEDIASOUP_CONFIG) private readonly config: MediasoupAppConfig) {}
+  constructor(
+    @Inject(MEDIASOUP_CONFIG) private readonly config: MediasoupAppConfig,
+  ) {}
 
   async onModuleInit(): Promise<void> {
     this.logger.log(`Starting ${this.config.numWorkers} mediasoup worker(s)`);
@@ -68,7 +76,8 @@ export class WorkerPoolService implements OnModuleInit, OnModuleDestroy {
 
   getWebRtcServer(worker: mediasoupTypes.Worker): mediasoupTypes.WebRtcServer {
     const entry = this.entries.get(worker.pid);
-    if (!entry) throw new Error(`No WebRtcServer registered for worker ${worker.pid}`);
+    if (!entry)
+      throw new Error(`No WebRtcServer registered for worker ${worker.pid}`);
     return entry.webRtcServer;
   }
 
